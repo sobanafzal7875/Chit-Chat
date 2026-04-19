@@ -102,7 +102,16 @@ export function ChatSidebar({
             </div>
           ) : (
             <ul className="p-1 space-y-0.5">
-              {(searchQuery && searchResults.length > 0 ? searchResults : []).map((u) => (
+              {(searchQuery && searchResults.length > 0 
+                ? searchResults 
+                : chats
+                    .filter((c) => !c.isGroup) // Only direct messages
+                    .map((c) => ({
+                      id: c.id,
+                      username: c.username || '',
+                      name: c.name || c.username,
+                      dp: c.dp,
+                    }))).map((u) => (
                 <li
                   key={u.id || u.username}
                   onClick={() => onMemberToggle(u.username)}

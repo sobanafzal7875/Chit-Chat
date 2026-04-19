@@ -157,6 +157,7 @@ export default function ChatPageClient() {
             onCall={callUser}
             onWatchTogether={startWatchTogether}
             onUnsendMessage={unsendMessage}
+            onBack={() => selectUser(null)}
           />
         </div>
       </div>

@@ -83,6 +83,8 @@ export function useChat() {
   const myAudio = useRef<HTMLAudioElement>(null);
   const userAudio = useRef<HTMLAudioElement>(null);
   const connectionRef = useRef<InstanceType<typeof Peer> | null>(null);
+  const messagePollIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const lastMessageTimestampRef = useRef<string | null>(null);
 
   const [isWatchTogether, setIsWatchTogether] = useState(false);
   const [watchTogetherSession, setWatchTogetherSession] = useState<{ id: string; admin?: string; participants?: string[] } | null>(null);
@@ -362,6 +364,46 @@ export function useChat() {
     }
   }, []);
 
+  const startMessagePolling = useCallback(async () => {
+    // Clear any existing polling
+    if (messagePollIntervalRef.current) {
+      clearInterval(messagePollIntervalRef.current);
+    }
+
+    // Poll for new messages every 2 seconds
+    messagePollIntervalRef.current = setInterval(async () => {
+      const sel = selectedUserRef.current;
+      if (!sel) return;
+
+      try {
+        const endpoint = sel.isGroup
+          ? `/api/messages?groupId=${sel.id}`
+          : `/api/messages?with=${encodeURIComponent(sel.username)}`;
+        const res = await fetch(endpoint, { headers: authHeaders() });
+        if (res.ok) {
+          const data = await res.json();
+          const newMessages = data.messages || [];
+          setMessages((prev) => {
+            // Merge new messages, avoiding duplicates
+            const messageMap = new Map();
+            prev.forEach((m) => messageMap.set(m._id, m));
+            newMessages.forEach((m: ChatMessage) => {
+              if (!messageMap.has(m._id)) {
+                messageMap.set(m._id, m);
+              }
+            });
+            const merged = Array.from(messageMap.values());
+            // Sort by timestamp
+            merged.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+            return merged;
+          });
+        }
+      } catch (e) {
+        console.error('Error polling messages:', e);
+      }
+    }, 2000);
+  }, []);
+
   useEffect(() => {
     if (isGroupCreationMode) return;
     const q = searchQuery.trim();
@@ -375,7 +417,18 @@ export function useChat() {
     return () => clearTimeout(t);
   }, [searchQuery, isGroupCreationMode, searchUsers]);
 
-  const selectUser = async (user: ChatListItem | ChatUser) => {
+  const selectUser = async (user: ChatListItem | ChatUser | null) => {
+    // Stop polling if deselecting
+    if (!user) {
+      if (messagePollIntervalRef.current) {
+        clearInterval(messagePollIntervalRef.current);
+        messagePollIntervalRef.current = null;
+      }
+      setSelectedUser(null);
+      setMessages([]);
+      return;
+    }
+
     const isGroup = Boolean(user.isGroup);
     const id = user.id ?? '';
     const username = user.username ?? '';
@@ -407,10 +460,14 @@ export function useChat() {
       if (res.ok) {
         const data = await res.json();
         setMessages(data.messages || []);
+        lastMessageTimestampRef.current = null;
       }
     } catch (e) {
       console.error('Error fetching messages:', e);
     }
+
+    // Start polling for new messages
+    await startMessagePolling();
   };
 
   const sendMessage = async () => {
@@ -437,8 +494,13 @@ export function useChat() {
         setMessages((prev) => [...prev, savedMessage]);
         setNewMessage('');
         setFileAttachment(null);
+        
+        // Emit to socket with a slight delay to ensure server has persisted
+        setTimeout(() => {
+          socketRef.current?.emit('send_message', savedMessage);
+        }, 100);
+        
         await fetchRecentChats();
-        socketRef.current?.emit('send_message', savedMessage);
       }
     } catch (e) {
       console.error('Error sending message:', e);
@@ -596,6 +658,16 @@ export function useChat() {
         if (userAudio.current) userAudio.current.srcObject = remoteStream;
       });
 
+      peer.on('error', (err) => {
+        console.error('Peer error:', err);
+        endCall();
+      });
+
+      peer.on('close', () => {
+        console.log('Peer connection closed');
+        endCall();
+      });
+
       const onAccepted = (signal: PeerSignalArg) => {
         setCallAccepted(true);
         setCalling(false);
@@ -605,6 +677,10 @@ export function useChat() {
       sock.on('call_accepted', onAccepted);
 
       connectionRef.current = peer;
+    }).catch((err) => {
+      console.error('Error getting media devices:', err);
+      alert('Could not access microphone. Please check your permissions.');
+      setCalling(false);
     });
   };
 
@@ -631,8 +707,23 @@ export function useChat() {
         if (userAudio.current) userAudio.current.srcObject = remoteStream;
       });
 
+      peer.on('error', (err) => {
+        console.error('Peer error:', err);
+        endCall();
+      });
+
+      peer.on('close', () => {
+        console.log('Peer connection closed');
+        endCall();
+      });
+
       peer.signal(callerSignal as PeerSignalArg);
       connectionRef.current = peer;
+    }).catch((err) => {
+      console.error('Error getting media devices:', err);
+      alert('Could not access microphone. Please check your permissions.');
+      setCallAccepted(false);
+      setReceivingCall(false);
     });
   };
 

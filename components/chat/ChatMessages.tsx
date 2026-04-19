@@ -87,7 +87,7 @@ export function ChatMessages({
 
   return (
     <>
-      <div className="flex-1 overflow-y-auto p-4 space-y-3">
+      <div className="flex-1 overflow-y-auto p-4 space-y-3 scroll-smooth scrollbar-thin scrollbar-thumb-gray-600 hover:scrollbar-thumb-gray-500 scrollbar-track-transparent">
         {messages.map((msg, idx) => {
           const senderName = senderUsername(msg.sender);
           const isOwnMessage = senderName === currentUser.username;
