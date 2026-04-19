@@ -2,7 +2,7 @@ import AuthForm from '@/components/auth/AuthForm';
 
 export default function Home() {
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-background relative overflow-hidden selection:bg-primary/30">
+    <div className="min-h-dvh overflow-y-auto flex flex-col items-center justify-center bg-background relative selection:bg-primary/30">
       {/* Background decorations for a professional/modern look */}
       <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-primary/10 rounded-full blur-[120px] pointer-events-none" />
       <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-primary/5 rounded-full blur-[120px] pointer-events-none" />
@@ -37,7 +37,7 @@ export default function Home() {
       
       {/* Footer Area */}
       <div className="absolute bottom-6 text-center text-sm text-muted-foreground z-10 w-full">
-        &copy; {new Date().getFullYear()} ChitChat. Built for scale.
+        &copy; {new Date().getFullYear()} ChitChat.
       </div>
     </div>
   );

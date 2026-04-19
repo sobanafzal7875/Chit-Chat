@@ -31,6 +31,10 @@ const MessageSchema = new mongoose.Schema({
     type: Boolean,
     default: false,
   },
+  unsent: {
+    type: Boolean,
+    default: false,
+  },
 }, {
   timestamps: true,
 });

@@ -71,7 +71,7 @@ export default function AuthForm() {
   return (
     <Card className="w-full max-w-md mx-auto border-t-4 border-t-primary backdrop-blur-md bg-card/95 transition-all duration-300 hover:shadow-xl shadow-lg relative z-10 overflow-hidden">
       {/* Decorative top gradient line */}
-      <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-primary/60 via-primary to-primary/60"></div>
+      <div className="absolute top-0 left-0 w-full h-1 bg-linear-to-r from-primary/60 via-primary to-primary/60"></div>
       
       <CardHeader className="space-y-2 pb-6 pt-8">
         <CardTitle className="text-3xl font-extrabold tracking-tight text-center text-foreground">

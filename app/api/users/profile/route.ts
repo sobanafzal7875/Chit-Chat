@@ -1,66 +1,46 @@
-import { NextRequest, NextResponse } from 'next/server';
-import dbConnect from '@/lib/db';
-import User from '@/model/user';
+import { NextRequest } from 'next/server';
+import { connectToDatabase } from '@/lib/db';
+import { UserService } from '@/lib/services/UserService';
+import { handleApiError, createSuccessResponse } from '@/lib/utils/apiResponse';
+import { authenticateUser } from '@/lib/middleware/auth';
 
 export async function GET(request: NextRequest) {
   try {
-    await dbConnect();
-    const token = request.headers.get('Authorization')?.replace('Bearer ', '');
-    
-    if (!token) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    await connectToDatabase();
+
+    const authResult = await authenticateUser(request);
+    if (!authResult.success) {
+      return createSuccessResponse({ error: authResult.error }, 401);
     }
 
-    // Verify token here (assume simple username matching for MVP if token logic is basic, 
-    // or we can pass username in header for simplicity in this demo)
-    // For real app, use jwt.verify
-    const searchParams = request.nextUrl.searchParams;
-    const username = searchParams.get('username');
+    const user = await UserService.getUserById(authResult.userId!);
 
-    if (!username) {
-        return NextResponse.json({ error: 'Username required' }, { status: 400 });
-    }
-
-    const user = await User.findOne({ username }).select('-password');
-    if (!user) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 });
-    }
-
-    return NextResponse.json({ user });
+    return createSuccessResponse({ user });
   } catch (error) {
-    console.error(error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return handleApiError(error);
   }
 }
 
 export async function PUT(request: NextRequest) {
   try {
-    await dbConnect();
-    
-    const { username, name, dp } = await request.json();
+    await connectToDatabase();
 
-    if (!username) {
-      return NextResponse.json({ error: 'Username is required' }, { status: 400 });
+    const authResult = await authenticateUser(request);
+    if (!authResult.success) {
+      return createSuccessResponse({ error: authResult.error }, 401);
     }
 
-    // Update user but prevent username change
-    const updateData: any = {};
-    if (name) updateData.name = name;
-    if (dp !== undefined) updateData.dp = dp;
+    const { name, dp, currentPassword, newPassword } = await request.json();
 
-    const user = await User.findOneAndUpdate(
-      { username },
-      { $set: updateData },
-      { new: true }
-    ).select('-password');
+    const user = await UserService.updateUser(authResult.userId!, {
+      name,
+      dp,
+      currentPassword,
+      newPassword,
+    });
 
-    if (!user) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 });
-    }
-
-    return NextResponse.json({ message: 'Profile updated successfully', user });
+    return createSuccessResponse({ user });
   } catch (error) {
-    console.error(error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return handleApiError(error);
   }
 }

@@ -1,31 +1,50 @@
-import { NextRequest, NextResponse } from 'next/server';
-import dbConnect from '@/lib/db';
-import Group from '@/model/group';
+import { NextRequest } from 'next/server';
+import { connectToDatabase } from '@/lib/db';
+import { GroupService } from '@/lib/services/GroupService';
+import { handleApiError, createSuccessResponse } from '@/lib/utils/apiResponse';
+import { authenticateUser } from '@/lib/middleware/auth';
 
 export async function POST(request: NextRequest) {
   try {
-    await dbConnect();
-    const { name, members, admin, dp } = await request.json();
+    await connectToDatabase();
 
-    if (!name || !admin || !members || !Array.isArray(members)) {
-      return NextResponse.json({ error: 'Missing fields' }, { status: 400 });
+    const authResult = await authenticateUser(request);
+    if (!authResult.success) {
+      return createSuccessResponse({ error: authResult.error }, 401);
     }
 
-    // Include admin in members if not already there
-    const allMembers = Array.from(new Set([...members, admin]));
+    const { name, members, dp } = await request.json();
 
-    const group = new Group({
+    if (!name || !members || !Array.isArray(members)) {
+      return createSuccessResponse({ error: 'Name and members are required' }, 400);
+    }
+
+    const group = await GroupService.createGroup({
       name,
-      admin,
-      members: allMembers,
-      dp: dp || ''
+      admin: authResult.username,
+      members,
+      dp,
     });
 
-    await group.save();
-
-    return NextResponse.json({ group });
+    return createSuccessResponse({ group }, 201);
   } catch (error) {
-    console.error(error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return handleApiError(error);
+  }
+}
+
+export async function GET(request: NextRequest) {
+  try {
+    await connectToDatabase();
+
+    const authResult = await authenticateUser(request);
+    if (!authResult.success) {
+      return createSuccessResponse({ error: authResult.error }, 401);
+    }
+
+    const groups = await GroupService.getUserGroups(authResult.username);
+
+    return createSuccessResponse({ groups });
+  } catch (error) {
+    return handleApiError(error);
   }
 }

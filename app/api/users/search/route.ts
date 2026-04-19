@@ -1,27 +1,21 @@
-import { NextRequest, NextResponse } from 'next/server';
-import dbConnect from '@/lib/db';
-import User from '@/model/user';
+import { NextRequest } from 'next/server';
+import { connectToDatabase } from '@/lib/db';
+import { UserService } from '@/lib/services/UserService';
+import { handleApiError, createSuccessResponse } from '@/lib/utils/apiResponse';
+import { tryGetUsernameFromRequest } from '@/lib/middleware/auth';
 
 export async function GET(request: NextRequest) {
   try {
-    await dbConnect();
+    await connectToDatabase();
     const searchParams = request.nextUrl.searchParams;
-    const query = searchParams.get('q');
+    const query = searchParams.get('q') ?? '';
 
-    if (!query) {
-      return NextResponse.json({ users: [] });
-    }
+    const excludeUsername = tryGetUsernameFromRequest(request) ?? undefined;
 
-    // Search users by username (case-insensitive, partial match)
-    const users = await User.find({
-      username: { $regex: query, $options: 'i' }
-    })
-    .select('name username _id')
-    .limit(10);
+    const users = await UserService.searchUsers(query, excludeUsername);
 
-    return NextResponse.json({ users });
+    return createSuccessResponse({ users });
   } catch (error) {
-    console.error(error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return handleApiError(error);
   }
 }

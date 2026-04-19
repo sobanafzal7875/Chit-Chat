@@ -1,27 +1,38 @@
-import { NextRequest, NextResponse } from 'next/server';
-import dbConnect from '@/lib/db';
-import Message from '@/model/message';
+import { NextRequest } from 'next/server';
+import { connectToDatabase } from '@/lib/db';
+import { MessageService } from '@/lib/services/MessageService';
+import { handleApiError, createSuccessResponse } from '@/lib/utils/apiResponse';
+import { authenticateUser } from '@/lib/middleware/auth';
 
 export async function POST(request: NextRequest) {
   try {
-    await dbConnect();
-    const { sender, receiver } = await request.json();
+    await connectToDatabase();
 
-    if (!sender || !receiver) {
-      return NextResponse.json({ error: 'Missing fields' }, { status: 400 });
+    const authResult = await authenticateUser(request);
+    if (!authResult.success) {
+      return createSuccessResponse({ error: authResult.error }, 401);
     }
 
-    // Mark all messages sent BY sender TO receiver as read
-    // Wait, the API caller is the receiver who just read them.
-    // So receiver is the one making the call. "sender" is the person who originally sent it.
-    await Message.updateMany(
-      { sender, receiver, read: false },
-      { $set: { read: true } }
-    );
+    const { otherUsername, groupId } = await request.json();
 
-    return NextResponse.json({ success: true });
+    if (!otherUsername && !groupId) {
+      return createSuccessResponse(
+        { error: 'Either otherUsername or groupId is required' },
+        400
+      );
+    }
+
+    if (groupId) {
+      await MessageService.markGroupMessagesAsRead(groupId, authResult.username);
+    } else {
+      await MessageService.markDirectMessagesAsRead(
+        authResult.username,
+        otherUsername
+      );
+    }
+
+    return createSuccessResponse({ success: true });
   } catch (error) {
-    console.error(error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return handleApiError(error);
   }
 }

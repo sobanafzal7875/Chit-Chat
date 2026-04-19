@@ -1,35 +1,19 @@
 @import "tailwindcss";
 
+/* Dark-first UI (Chit Chat) — orange accent ~#FF781F */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-  --primary: #f97316;
-  --primary-hover: #ea580c;
-  --primary-foreground: #ffffff;
-  --muted: #f3f4f6;
-  --muted-foreground: #6b7280;
-  --border: #e5e7eb;
-  --input: #e5e7eb;
-  --ring: #f97316;
-  --card: #ffffff;
-  --card-foreground: #171717;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #000000;
-    --foreground: #ededed;
-    --primary: #f97316;
-    --primary-hover: #ea580c;
-    --primary-foreground: #ffffff;
-    --muted: #262626;
-    --muted-foreground: #a3a3a3;
-    --border: #262626;
-    --input: #262626;
-    --ring: #f97316;
-    --card: #0a0a0a;
-    --card-foreground: #ededed;
-  }
+  --background: #000000;
+  --foreground: #ededed;
+  --primary: #ff781f;
+  --primary-hover: #ff9538;
+  --primary-foreground: #0a0a0a;
+  --muted: #1a1a1a;
+  --muted-foreground: #a3a3a3;
+  --border: #2a2a2a;
+  --input: #2a2a2a;
+  --ring: #ff781f;
+  --card: #121212;
+  --card-foreground: #ededed;
 }
 
 @theme inline {
@@ -49,7 +33,13 @@
   --font-mono: var(--font-geist-mono);
 }
 
+html {
+  height: 100%;
+}
+
 body {
+  height: 100%;
+  min-height: 100%;
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans), Arial, Helvetica, sans-serif;

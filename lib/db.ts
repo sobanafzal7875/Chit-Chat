@@ -1,39 +1,22 @@
-import mongoose from "mongoose";
+import DatabaseService from '@/lib/services/DatabaseService';
 
-type MongooseCache = {
-  conn: typeof mongoose | null;
-  promise: Promise<typeof mongoose> | null;
-};
-
-declare global {
-  // eslint-disable-next-line no-var
-  var mongooseCache: MongooseCache | undefined;
+export async function connectToDatabase() {
+  const dbService = DatabaseService.getInstance();
+  await dbService.connect();
 }
 
-const cached: MongooseCache = global.mongooseCache || {
-  conn: null,
-  promise: null,
-};
-
-global.mongooseCache = cached;
-
-function getMongoUri(): string {
-  const uri = process.env.MONGO_URI;
-  if (!uri) {
-    throw new Error("Please define MONGODB_URI in your deployment environment");
-  }
-  return uri;
+export async function disconnectFromDatabase() {
+  const dbService = DatabaseService.getInstance();
+  await dbService.disconnect();
 }
 
+export function getDatabaseStatus() {
+  const dbService = DatabaseService.getInstance();
+  return dbService.getConnectionStatus();
+}
+
+// Legacy function for backward compatibility
 export default async function dbConnect() {
-  if (cached.conn) return cached.conn;
-
-  if (!cached.promise) {
-    cached.promise = mongoose.connect(getMongoUri(), {
-      bufferCommands: false,
-    });
-  }
-
-  cached.conn = await cached.promise;
-  return cached.conn;
+  await connectToDatabase();
+  return DatabaseService.getInstance();
 }

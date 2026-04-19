@@ -1,37 +1,31 @@
-import { NextRequest, NextResponse } from 'next/server';
-import dbConnect from '@/lib/db';
-import User from '@/model/user';
-import { hashPassword } from '@/utils/auth';
+import { NextRequest } from 'next/server';
+import { connectToDatabase } from '@/lib/db';
+import { UserService } from '@/lib/services/UserService';
+import { handleApiError, createSuccessResponse } from '@/lib/utils/apiResponse';
 
 export async function POST(request: NextRequest) {
   try {
-    await dbConnect();
+    await connectToDatabase();
 
     const { name, username, email, password } = await request.json();
 
     if (!name || !username || !email || !password) {
-      return NextResponse.json({ error: 'All fields are required' }, { status: 400 });
+      return createSuccessResponse(
+        { error: 'Name, username, email, and password are required' },
+        400
+      );
     }
 
-    const existingUser = await User.findOne({ $or: [{ email }, { username }] });
-    if (existingUser) {
-      return NextResponse.json({ error: 'Email or username already exists' }, { status: 400 });
-    }
+    const user = await UserService.createUser(username, name, password, email);
 
-    const hashedPassword = await hashPassword(password);
-
-    const user = new User({
-      name,
-      username,
-      email,
-      password: hashedPassword,
-    });
-
-    await user.save();
-
-    return NextResponse.json({ message: 'User created successfully' }, { status: 201 });
+    return createSuccessResponse(
+      {
+        message: 'User created successfully',
+        user,
+      },
+      201
+    );
   } catch (error) {
-    console.error(error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return handleApiError(error);
   }
 }

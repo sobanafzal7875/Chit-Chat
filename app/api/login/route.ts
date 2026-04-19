@@ -1,33 +1,31 @@
-import { NextRequest, NextResponse } from 'next/server';
-import dbConnect from '@/lib/db';
-import User from '@/model/user';
-import { verifyPassword, generateToken } from '@/utils/auth';
+import { NextRequest } from 'next/server';
+import { connectToDatabase } from '@/lib/db';
+import { UserService } from '@/lib/services/UserService';
+import { handleApiError, createSuccessResponse } from '@/lib/utils/apiResponse';
 
 export async function POST(request: NextRequest) {
   try {
-    await dbConnect();
+    await connectToDatabase();
 
-    const { email, password } = await request.json();
+    const body = await request.json();
+    const identifier = (body.email ?? body.username ?? '').trim();
+    const password = body.password;
 
-    if (!email || !password) {
-      return NextResponse.json({ error: 'Email and password are required' }, { status: 400 });
+    if (!identifier || !password) {
+      return createSuccessResponse(
+        { error: 'Email (or username) and password are required' },
+        400
+      );
     }
 
-    const user = await User.findOne({ email });
-    if (!user) {
-      return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
-    }
+    const result = await UserService.authenticateUser(identifier, password);
 
-    const isValid = await verifyPassword(password, user.password);
-    if (!isValid) {
-      return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
-    }
-
-    const token = generateToken({ userId: user._id, email: user.email });
-
-    return NextResponse.json({ token, username: user.username, user: { id: user._id, name: user.name, username: user.username, email: user.email } });
+    return createSuccessResponse({
+      token: result.token,
+      user: result.user,
+      username: result.user.username,
+    });
   } catch (error) {
-    console.error(error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return handleApiError(error);
   }
 }

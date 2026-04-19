@@ -1,52 +1,91 @@
-import { NextRequest, NextResponse } from 'next/server';
-import dbConnect from '@/lib/db';
-import Message from '@/model/message';
+import { NextRequest } from 'next/server';
+import { connectToDatabase } from '@/lib/db';
+import { MessageService } from '@/lib/services/MessageService';
+import { handleApiError, createSuccessResponse } from '@/lib/utils/apiResponse';
+import { authenticateUser } from '@/lib/middleware/auth';
 
 export async function GET(request: NextRequest) {
   try {
-    await dbConnect();
-    const searchParams = request.nextUrl.searchParams;
-    const user1 = searchParams.get('user1');
-    const user2 = searchParams.get('user2');
+    await connectToDatabase();
 
-    if (!user1 || !user2) {
-      return NextResponse.json({ error: 'Both users required' }, { status: 400 });
+    const authResult = await authenticateUser(request);
+    if (!authResult.success) {
+      return createSuccessResponse({ error: authResult.error }, 401);
     }
 
-    const messages = await Message.find({
-      $or: [
-        { sender: user1, receiver: user2 },
-        { sender: user2, receiver: user1 }
-      ]
-    }).sort({ createdAt: 1 });
+    const searchParams = request.nextUrl.searchParams;
+    const withUser = searchParams.get('with');
+    const groupId = searchParams.get('groupId');
 
-    return NextResponse.json({ messages });
+    let messages;
+    if (groupId) {
+      messages = await MessageService.getGroupMessages(groupId);
+    } else if (withUser) {
+      messages = await MessageService.getMessagesBetweenUsers(
+        authResult.username,
+        withUser
+      );
+    } else {
+      return createSuccessResponse(
+        { error: 'Query parameter "with" (username) or "groupId" is required' },
+        400
+      );
+    }
+
+    return createSuccessResponse({ messages });
   } catch (error) {
-    console.error(error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return handleApiError(error);
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
-    await dbConnect();
-    const { sender, receiver, content } = await request.json();
+    await connectToDatabase();
 
-    if (!sender || !receiver || !content) {
-      return NextResponse.json({ error: 'Missing fields' }, { status: 400 });
+    const authResult = await authenticateUser(request);
+    if (!authResult.success) {
+      return createSuccessResponse({ error: authResult.error }, 401);
     }
 
-    const message = new Message({
-      sender,
-      receiver,
-      content
-    });
+    const { content, receiver, groupId, fileUrl, fileType } = await request.json();
 
-    await message.save();
+    const hasBody = typeof content === 'string' && content.trim().length > 0;
+    if (!hasBody && !fileUrl) {
+      return createSuccessResponse(
+        { error: 'Either message content or fileUrl is required' },
+        400
+      );
+    }
 
-    return NextResponse.json({ message });
+    let message;
+    if (groupId) {
+      message = await MessageService.sendGroupMessage(
+        authResult.username,
+        groupId,
+        hasBody ? content.trim() : '',
+        fileUrl,
+        fileType
+      );
+    } else if (receiver) {
+      message = await MessageService.sendDirectMessage(
+        authResult.username,
+        receiver,
+        hasBody ? content.trim() : '',
+        fileUrl,
+        fileType
+      );
+    } else {
+      return createSuccessResponse(
+        { error: 'Either receiver (username) or groupId is required' },
+        400
+      );
+    }
+
+    return createSuccessResponse(
+      { message: MessageService.toPublicMessage(message) },
+      201
+    );
   } catch (error) {
-    console.error(error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return handleApiError(error);
   }
 }

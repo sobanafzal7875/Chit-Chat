@@ -1,90 +1,65 @@
-import { NextRequest, NextResponse } from 'next/server';
-import dbConnect from '@/lib/db';
-import Message from '@/model/message';
-import User from '@/model/user';
-import Group from '@/model/group';
+import { NextRequest } from 'next/server';
+import { connectToDatabase } from '@/lib/db';
+import { ChatService } from '@/lib/services/ChatService';
+import { handleApiError, createSuccessResponse } from '@/lib/utils/apiResponse';
+import { authenticateUser } from '@/lib/middleware/auth';
+import { getIo } from '@/lib/realtime/serverSocket';
 
 export async function GET(request: NextRequest) {
   try {
-    await dbConnect();
-    const searchParams = request.nextUrl.searchParams;
-    const username = searchParams.get('username');
+    await connectToDatabase();
 
-    if (!username) {
-      return NextResponse.json({ error: 'Username required' }, { status: 400 });
+    const authResult = await authenticateUser(request);
+    if (!authResult.success) {
+      return createSuccessResponse({ error: authResult.error }, 401);
     }
 
-    // 1. Get recent direct messages
-    const messages = await Message.find({
-      $or: [{ sender: username }, { receiver: username }]
-    }).sort({ createdAt: -1 });
+    const chats = await ChatService.getUserChats(authResult.username);
 
-    const chatMap = new Map();
-    let unreadTotal = 0;
-
-    for (const msg of messages) {
-      if (msg.groupId) continue; // skip group messages here
-
-      const otherUser = msg.sender === username ? msg.receiver : msg.sender;
-      if (!otherUser) continue;
-
-      if (!chatMap.has(otherUser)) {
-        chatMap.set(otherUser, {
-          isGroup: false,
-          id: otherUser,
-          username: otherUser,
-          lastMessage: msg,
-          unreadCount: 0
-        });
-      }
-
-      // If message is sent TO the current user and not read
-      if (msg.receiver === username && !msg.read) {
-        chatMap.get(otherUser).unreadCount += 1;
-        unreadTotal += 1;
-      }
-    }
-
-    // Resolve user details for direct chats
-    const directChats = Array.from(chatMap.values());
-    for (let chat of directChats) {
-      const u = await User.findOne({ username: chat.username }).select('name dp username');
-      if (u) {
-        chat.name = u.name;
-        chat.dp = u.dp;
-      }
-    }
-
-    // 2. Get groups
-    const groups = await Group.find({ members: username });
-    const groupChats = [];
-    
-    for (const group of groups) {
-      // get last message for group
-      const lastMsg = await Message.findOne({ groupId: group._id }).sort({ createdAt: -1 });
-      
-      groupChats.push({
-        isGroup: true,
-        id: group._id,
-        name: group.name,
-        dp: group.dp,
-        admin: group.admin,
-        members: group.members,
-        lastMessage: lastMsg || null,
-        unreadCount: 0 // Simplification for MVP
-      });
-    }
-
-    // Merge and sort by last message date
-    const allChats = [...directChats, ...groupChats].sort((a, b) => {
-      const dateA = a.lastMessage?.createdAt || new Date(0);
-      const dateB = b.lastMessage?.createdAt || new Date(0);
-      return new Date(dateB).getTime() - new Date(dateA).getTime();
-    });
-
-    return NextResponse.json({ chats: allChats, unreadTotal });
+    return createSuccessResponse({ chats });
   } catch (error) {
-    console.error(error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return handleApiError(error);
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  try {
+    await connectToDatabase();
+    const authResult = await authenticateUser(request);
+    if (!authResult.success) {
+      return createSuccessResponse({ error: authResult.error }, 401);
+    }
+
+    const body = await request.json();
+    const withUser = body.with as string | undefined;
+    const groupId = body.groupId as string | undefined;
+
+    const io = getIo();
+
+    if (withUser) {
+      await ChatService.deleteDirectConversation(authResult.username, withUser);
+      io?.to(withUser).emit('chat_deleted', {
+        kind: 'dm' as const,
+        peerUsername: authResult.username,
+      });
+      return createSuccessResponse({ ok: true });
+    }
+
+    if (groupId) {
+      const { memberUsernames } = await ChatService.deleteGroupConversation(
+        groupId,
+        authResult.username
+      );
+      const payload = { kind: 'group' as const, groupId };
+      for (const m of memberUsernames) {
+        io?.to(m).emit('chat_deleted', payload);
+      }
+      io?.to(String(groupId)).emit('chat_deleted', payload);
+      return createSuccessResponse({ ok: true });
+    }
+
+    return createSuccessResponse({ error: 'with or groupId is required' }, 400);
+  } catch (error) {
+    return handleApiError(error);
   }
 }
