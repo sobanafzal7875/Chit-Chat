@@ -8,6 +8,7 @@ export interface ChatUser {
   dp?: string;
   isGroup?: boolean;
   members?: { username: string; name?: string; dp?: string }[];
+  admin?: any;
 }
 
 export interface ChatListItem {
@@ -19,6 +20,7 @@ export interface ChatListItem {
   isGroup?: boolean;
   lastMessage?: { content?: string; fileUrl?: string; unsent?: boolean };
   members?: { username: string; name?: string; dp?: string }[];
+  admin?: any;
 }
 
 export interface ChatMessage {

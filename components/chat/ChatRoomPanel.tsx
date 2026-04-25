@@ -21,6 +21,8 @@ export interface ChatRoomPanelProps {
   onCall: (user: ChatUser) => void;
   onWatchTogether: (user: ChatUser) => void;
   onUnsendMessage?: (messageId: string) => void;
+  onBack?: () => void; // ✅ ADD
+  onGroupProfileClick?: () => void
 }
 
 export function ChatRoomPanel({
@@ -39,9 +41,15 @@ export function ChatRoomPanel({
   onCall,
   onWatchTogether,
   onUnsendMessage,
+  onBack, // ✅ ADD
+  onGroupProfileClick,
+  // onGroupProfileClick={() => setIsGroupProfileOpen(true)}
+
 }: ChatRoomPanelProps) {
   return (
-    <div className="md:col-span-3 bg-[#121212] rounded-2xl border border-[#2a2a2a] overflow-hidden flex flex-col h-full min-h-0">
+    <div className={`md:col-span-3 bg-[#121212] rounded-2xl border border-[#2a2a2a] overflow-hidden flex flex-col h-full min-h-0 ${
+  !selectedUser ? 'hidden md:flex' : 'flex'
+}`}>
       {selectedUser && (
         <ChatHeader
           selectedUser={selectedUser}
@@ -50,6 +58,7 @@ export function ChatRoomPanel({
           isWatchTogether={isWatchTogether}
           onCall={() => onCall(selectedUser)}
           onWatchTogether={() => onWatchTogether(selectedUser)}
+          onGroupProfileClick={onGroupProfileClick}
         />
       )}
 
@@ -58,6 +67,7 @@ export function ChatRoomPanel({
         currentUser={currentUser}
         selectedUser={selectedUser}
         onUnsend={onUnsendMessage}
+        onBack={onBack} // ✅ ADD
       />
 
       {selectedUser && (

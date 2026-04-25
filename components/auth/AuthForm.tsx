@@ -143,7 +143,7 @@ export default function AuthForm() {
                 id="password"
                 type="password"
                 name="password"
-                placeholder="••••••••"
+                placeholder="********"
                 value={formData.password}
                 onChange={handleChange}
                 required
@@ -195,8 +195,8 @@ export default function AuthForm() {
           </div>
         </div>
         
-        <div className="text-sm text-muted-foreground mt-6">
-          {isLogin ? "Don't have an account? " : 'Already have an account? '}
+        <div className="text-sm text-muted-foreground ">
+          {isLogin ? "Don't have an account? " : 'Already have an account?'}
           <button
             type="button"
             onClick={() => {

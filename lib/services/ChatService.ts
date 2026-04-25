@@ -119,6 +119,7 @@ export class ChatService {
           $project: {
             id: '$_id',
             name: 1,
+            dp: 1,
             admin: { $arrayElemAt: ['$admin', 0] },
             members: '$memberDetails',
             lastMessage: 1,
@@ -131,11 +132,11 @@ export class ChatService {
 
       // Combine and sort by last message time
       const allChats = [...individualChats, ...groupChats]
-        .filter(chat => chat.lastMessage) // Only include chats with messages
+        // .filter(chat => chat.lastMessage) // Only include chats with messages
         .sort((a, b) => {
-          const timeA = new Date(a.lastMessage.createdAt).getTime();
-          const timeB = new Date(b.lastMessage.createdAt).getTime();
-          return timeB - timeA;
+           const timeA = a.lastMessage ? new Date(a.lastMessage.createdAt).getTime() : new Date(a.createdAt || 0).getTime();
+    const timeB = b.lastMessage ? new Date(b.lastMessage.createdAt).getTime() : new Date(b.createdAt || 0).getTime();
+    return timeB - timeA;
         });
 
       return allChats;

@@ -21,22 +21,38 @@ export function handleApiError(error: unknown): NextResponse {
   }
 
   if (error instanceof Error) {
+    const message = error.message.toLowerCase();
+
+    // Database connectivity issues should return a retryable server status.
+    if (
+      message.includes('ecconnrefused') ||
+      message.includes('mongoose') ||
+      message.includes('server selection') ||
+      message.includes('timed out') ||
+      message.includes('mongo')
+    ) {
+      return NextResponse.json(
+        { error: 'Database unavailable. Please try again in a moment.' },
+        { status: 503 }
+      );
+    }
+
     // Handle specific error types
-    if (error.message.includes('validation')) {
+    if (message.includes('validation')) {
       return NextResponse.json(
         { error: 'Validation error', details: error.message },
         { status: 400 }
       );
     }
 
-    if (error.message.includes('not found')) {
+    if (message.includes('not found')) {
       return NextResponse.json(
         { error: error.message },
         { status: 404 }
       );
     }
 
-    if (error.message.includes('unauthorized') || error.message.includes('Authentication')) {
+    if (message.includes('unauthorized') || message.includes('authentication')) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }

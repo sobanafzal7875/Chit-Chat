@@ -19,11 +19,15 @@ class DatabaseService {
     try {
       const mongoUri =
         process.env.MONGODB_URI ||
+        process.env.MONGODB_URL ||
+        process.env.DATABASE_URL ||
         process.env.MONGO_URI ||
         (process.env.NODE_ENV !== 'production' ? 'mongodb://localhost:27017/chit-chat' : undefined);
 
       if (!mongoUri) {
-        throw new Error('MongoDB connection string is missing. Set MONGODB_URI (or legacy MONGO_URI).');
+        throw new Error(
+          'MongoDB connection string is missing. Set MONGODB_URI, MONGODB_URL, DATABASE_URL, or legacy MONGO_URI.'
+        );
       }
 
       await mongoose.connect(mongoUri, {

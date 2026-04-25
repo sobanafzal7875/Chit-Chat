@@ -36,9 +36,9 @@ export default function Home() {
       </div>
       
       {/* Footer Area */}
-      <div className="absolute bottom-6 text-center text-sm text-muted-foreground z-10 w-full">
+      {/* <div className="absolute bottom-6 text-center text-sm text-muted-foreground z-10 w-full">
         &copy; {new Date().getFullYear()} ChitChat.
-      </div>
+      </div> */}
     </div>
   );
 }

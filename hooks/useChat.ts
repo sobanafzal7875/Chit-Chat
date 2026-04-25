@@ -63,6 +63,7 @@ export function useChat() {
   const [profileUpdateError, setProfileUpdateError] = useState('');
   const [isUpdating, setIsUpdating] = useState(false);
 
+  const [isGroupProfileOpen, setIsGroupProfileOpen] = useState(false);
   const [isGroupCreationMode, setIsGroupCreationMode] = useState(false);
   const [groupCreationStep, setGroupCreationStep] = useState<'select' | 'name'>('select');
   const [groupName, setGroupName] = useState('');
@@ -83,6 +84,7 @@ export function useChat() {
   const myAudio = useRef<HTMLAudioElement>(null);
   const userAudio = useRef<HTMLAudioElement>(null);
   const connectionRef = useRef<InstanceType<typeof Peer> | null>(null);
+  const screenPeerRef = useRef<InstanceType<typeof Peer> | null>(null);
 
   const [isWatchTogether, setIsWatchTogether] = useState(false);
   const [watchTogetherSession, setWatchTogetherSession] = useState<{ id: string; admin?: string; participants?: string[] } | null>(null);
@@ -95,16 +97,24 @@ export function useChat() {
   const [mutedParticipants, setMutedParticipants] = useState<Set<string>>(new Set());
 
   async function fetchRecentChats() {
-    try {
-      const res = await fetch('/api/chats', { headers: authHeaders() });
-      if (res.ok) {
-        const data = await res.json();
-        setChats(data.chats || []);
-      }
-    } catch (e) {
-      console.error('Error fetching chats:', e);
+  try {
+    // Pehle cached data dikhao — user ko turant sidebar dikhe
+    const cached = localStorage.getItem('chats_cache');
+    if (cached) {
+      setChats(JSON.parse(cached));
     }
+    // Background mein fresh data fetch karo
+    const res = await fetch('/api/chats', { headers: authHeaders() });
+    if (res.ok) {
+      const data = await res.json();
+      const chats = data.chats || [];
+      localStorage.setItem('chats_cache', JSON.stringify(chats));
+      setChats(chats);
+    }
+  } catch (e) {
+    console.error('Error fetching chats:', e);
   }
+}
 
   const resetWatchTogetherLocal = useCallback(() => {
     setIsWatchTogether(false);
@@ -129,14 +139,17 @@ export function useChat() {
 
     void (async () => {
       try {
-        const res = await fetch('/api/users/profile', { headers: authHeaders() });
-        const data = await res.json();
-        if (data.user) {
-          setCurrentUser(data.user);
-          setProfileName(data.user.name);
-          setProfileDp(data.user.dp || '');
-          await fetchRecentChats();
-        } else {
+      const [res] = await Promise.all([
+        fetch('/api/users/profile', { headers: authHeaders() }),
+        fetchRecentChats(), // ← dono SAATH mein chalein
+      ]);
+      const data = await res.json();
+      if (data.user) {
+        setCurrentUser(data.user);
+        setProfileName(data.user.name);
+        setProfileDp(data.user.dp || '');
+      }
+        else {
           router.push('/');
         }
       } catch {
@@ -178,6 +191,8 @@ export function useChat() {
           body: JSON.stringify({ otherUsername: senderStr }),
         });
       }
+      // Sidebar unread count update karo
+      void fetchRecentChats(); 
     });
 
     newSocket.on('messages_read', ({ by }: { by: string }) => {
@@ -200,7 +215,7 @@ export function useChat() {
             : m
         )
       );
-      void fetchRecentChats();
+      // void fetchRecentChats();
     });
 
     newSocket.on(
@@ -229,6 +244,24 @@ export function useChat() {
         }
       }
     );
+
+    newSocket.on('group_updated', (group: any) => {
+      void fetchRecentChats();
+      const sel = selectedUserRef.current;
+      if (sel?.isGroup && sel.id === group._id) {
+        setSelectedUser((prev: any) => prev ? {
+          ...prev,
+          name: group.name,
+          dp: group.dp,
+          members: group.members,
+          admin: group.admin,
+        } : prev);
+      }
+    });
+
+    newSocket.on('chat_added', () => {
+      void fetchRecentChats();
+    });
 
     newSocket.on('call_incoming', ({ signal, from }: { signal: unknown; from: string }) => {
       setReceivingCall(true);
@@ -335,6 +368,23 @@ export function useChat() {
     newSocket.on('watch_together_ended', () => {
       resetWatchTogetherLocal();
     });
+      newSocket.on('screen_share_started', ({ sessionId }: { sessionId: string }) => {
+  if (watchTogetherSession?.id === sessionId) {
+    setIsScreenSharing(true);
+  }
+});
+
+newSocket.on('screen_share_ended', ({ sessionId }: { sessionId: string }) => {
+  if (watchTogetherSession?.id === sessionId) {
+    setIsScreenSharing(false);
+    setScreenStream(null);
+  }
+});
+
+newSocket.on('screen_share_signal', ({ signal }: { signal: unknown }) => {
+  screenPeerRef.current?.signal(signal as PeerSignalArg);
+});
+
 
     return () => {
       newSocket.close();
@@ -389,6 +439,7 @@ export function useChat() {
       email: (user as ChatUser).email,
       isGroup,
       members: (user as ChatUser).members,
+      admin: (user as ChatListItem).admin,
     };
     setSelectedUser(normalized);
     setSearchQuery('');
@@ -407,11 +458,33 @@ export function useChat() {
       if (res.ok) {
         const data = await res.json();
         setMessages(data.messages || []);
+
+        if (!normalized.isGroup && me) {
+    socketRef.current?.emit('mark_read', {
+      sender: normalized.username,
+      receiver: me,
+    });
+    void fetch('/api/messages/read', {
+      method: 'POST',
+      headers: jsonAuthHeaders(),
+      body: JSON.stringify({ otherUsername: normalized.username }),
+    });
+  }   
+  // Group messages bhi read mark karo
+      if (normalized.isGroup) {
+        setChats((prev) =>
+          prev.map((c) =>
+            c.id === normalized.id ? { ...c, unreadCount: 0 } : c
+          )
+        );
+      }
       }
     } catch (e) {
       console.error('Error fetching messages:', e);
     }
   };
+
+  
 
   const sendMessage = async () => {
     const sel = selectedUserRef.current;
@@ -437,7 +510,18 @@ export function useChat() {
         setMessages((prev) => [...prev, savedMessage]);
         setNewMessage('');
         setFileAttachment(null);
-        await fetchRecentChats();
+        // await fetchRecentChats();
+        setChats((prev) => {
+        const chatId = sel.isGroup ? sel.id : sel.username;
+        const exists = prev.find((c) => (sel.isGroup ? c.id === chatId : c.username === chatId));
+        if (exists) {
+          return [
+            { ...exists, lastMessage: savedMessage, unreadCount: 0 },
+            ...prev.filter((c) => c !== exists),
+          ];
+        }
+        return prev;
+      });
         socketRef.current?.emit('send_message', savedMessage);
       }
     } catch (e) {
@@ -530,6 +614,7 @@ export function useChat() {
     setSelectedMembers([]);
     setGroupName('');
     setSearchQuery('');
+    setSearchResults([]);
     try {
       const res = await fetch('/api/users/search?q=', { headers: authHeaders() });
       if (res.ok) {
@@ -543,70 +628,155 @@ export function useChat() {
   };
 
   const createGroup = async () => {
-    const me = currentUserRef.current;
-    if (!groupName || selectedMembers.length === 0 || !me) return;
-    try {
-      const res = await fetch('/api/groups', {
-        method: 'POST',
-        headers: jsonAuthHeaders(),
-        body: JSON.stringify({
-          name: groupName,
-          members: selectedMembers,
-        }),
-      });
-      if (res.ok) {
-        setIsGroupCreationMode(false);
-        setGroupCreationStep('select');
-        setGroupName('');
-        setSelectedMembers([]);
-        setSearchQuery('');
-        await fetchRecentChats();
+  const me = currentUserRef.current;
+  if (!groupName || selectedMembers.length === 0 || !me) return;
+  try {
+    const res = await fetch('/api/groups', {
+      method: 'POST',
+      headers: jsonAuthHeaders(),
+      body: JSON.stringify({
+        name: groupName,
+        members: selectedMembers,
+      }),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      setIsGroupCreationMode(false);
+      setGroupCreationStep('select');
+      setGroupName('');
+      setSelectedMembers([]);
+      setSearchQuery('');
+      await fetchRecentChats();
+
+      // ✅ Group create hone ke baad automatically open karo
+      if (data.group) {
+        const newGroup: ChatUser = {
+          id: String(data.group._id),
+          username: '',
+          name: data.group.name,
+          dp: data.group.dp,
+          isGroup: true,
+          members: data.group.members,
+          admin: data.group.admin,
+        };
+        setSelectedUser(newGroup);
+        // Messages fetch karo
+        try {
+          const msgRes = await fetch(`/api/messages?groupId=${data.group._id}`, {
+            headers: authHeaders(),
+          });
+          if (msgRes.ok) {
+            const msgData = await msgRes.json();
+            setMessages(msgData.messages || []);
+          }
+        } catch (e) {
+          console.error(e);
+        }
       }
-    } catch (e) {
-      console.error(e);
     }
-  };
+  } catch (e) {
+    console.error(e);
+  }
+};
+
+  // const createGroup = async () => {
+  //   const me = currentUserRef.current;
+  //   if (!groupName || selectedMembers.length === 0 || !me) return;
+  //   try {
+  //     const res = await fetch('/api/groups', {
+  //       method: 'POST',
+  //       headers: jsonAuthHeaders(),
+  //       body: JSON.stringify({
+  //         name: groupName,
+  //         members: selectedMembers,
+  //       }),
+  //     });
+  //     if (res.ok) {
+  //       setIsGroupCreationMode(false);
+  //       setGroupCreationStep('select');
+  //       setGroupName('');
+  //       setSelectedMembers([]);
+  //       setSearchQuery('');
+  //       await fetchRecentChats();
+  //     }
+  //   } catch (e) {
+  //     console.error(e);
+  //   }
+  // };
+
+  // const callUser = (user: ChatUser) => {
+  //   const me = currentUserRef.current;
+  //   const sock = socketRef.current;
+  //   if (!me || !sock) return;
+  //   callRemoteUsernameRef.current = user.username;
+
+  //   void navigator.mediaDevices.getUserMedia({ video: false, audio: true }).then((mediaStream) => {
+  //     setStream(mediaStream);
+  //     setCalling(true);
+
+  //     const peer = new Peer({
+  //       initiator: true,
+  //       trickle: false,
+  //       stream: mediaStream,
+  //     });
+
+  //     peer.on('signal', (data) => {
+  //       sock.emit('call_user', {
+  //         userToCall: user.username,
+  //         signalData: data,
+  //         from: me.username,
+  //         name: me.name,
+  //       });
+  //     });
+
+  //     peer.on('stream', (remoteStream) => {
+  //       if (userAudio.current) userAudio.current.srcObject = remoteStream;
+  //     });
+
+  //     const onAccepted = (signal: PeerSignalArg) => {
+  //       setCallAccepted(true);
+  //       setCalling(false);
+  //       peer.signal(signal);
+  //       sock.off('call_accepted', onAccepted);
+  //     };
+  //     sock.on('call_accepted', onAccepted);
+
+  //     connectionRef.current = peer;
+  //   });
+  // };
 
   const callUser = (user: ChatUser) => {
-    const me = currentUserRef.current;
-    const sock = socketRef.current;
-    if (!me || !sock) return;
-    callRemoteUsernameRef.current = user.username;
+  const me = currentUserRef.current;
+  const sock = socketRef.current;
+  if (!me || !sock) return;
+  callRemoteUsernameRef.current = user.username;
 
-    void navigator.mediaDevices.getUserMedia({ video: false, audio: true }).then((mediaStream) => {
-      setStream(mediaStream);
-      setCalling(true);
+  void navigator.mediaDevices.getUserMedia({ video: false, audio: true }).then((mediaStream) => {
+    setStream(mediaStream);
+    setCalling(true);
 
-      const peer = new Peer({
-        initiator: true,
-        trickle: false,
-        stream: mediaStream,
-      });
-
-      peer.on('signal', (data) => {
-        sock.emit('call_user', {
-          userToCall: user.username,
-          signalData: data,
-          from: me.username,
-          name: me.name,
-        });
-      });
-
-      peer.on('stream', (remoteStream) => {
-        if (userAudio.current) userAudio.current.srcObject = remoteStream;
-      });
-
-      const onAccepted = (signal: PeerSignalArg) => {
-        setCallAccepted(true);
-        setCalling(false);
-        peer.signal(signal);
-        sock.off('call_accepted', onAccepted);
-      };
-      sock.on('call_accepted', onAccepted);
-
-      connectionRef.current = peer;
+    const peer = new Peer({
+      initiator: true,
+      trickle: false,
+      stream: mediaStream,
     });
-  };
+
+    peer.on('signal', (data) => {
+      sock.emit('call_user', {
+        userToCall: user.username,
+        signalData: data,
+        from: me.username,
+        name: me.name,
+      });
+    });
+
+    peer.on('stream', (remoteStream) => {
+      if (userAudio.current) userAudio.current.srcObject = remoteStream;
+    });
+
+    connectionRef.current = peer;
+  });
+};
 
   const answerCall = () => {
     const sock = socketRef.current;
@@ -816,7 +986,7 @@ export function useChat() {
               : m
           )
         );
-        await fetchRecentChats();
+        // await fetchRecentChats();
       }
     } catch (e) {
       console.error(e);
@@ -894,5 +1064,10 @@ export function useChat() {
     toggleSelfMute,
     deleteChat,
     unsendMessage,
+    setSelectedUser, // ✅ ADD
+    isGroupProfileOpen,
+    setIsGroupProfileOpen,
+    fetchRecentChats,
+    setMessages,
   };
 }

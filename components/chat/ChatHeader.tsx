@@ -10,6 +10,7 @@ export interface ChatHeaderProps {
   isWatchTogether: boolean;
   onCall: () => void;
   onWatchTogether: () => void;
+  onGroupProfileClick?: () => void;
 }
 
 export function ChatHeader({
@@ -19,10 +20,12 @@ export function ChatHeader({
   isWatchTogether,
   onCall,
   onWatchTogether,
+  onGroupProfileClick,
 }: ChatHeaderProps) {
   return (
     <div className="shrink-0 px-4 py-3 border-b border-[#2a2a2a] flex items-center justify-between gap-3 bg-[#0d0d0d]">
-      <div className="flex items-center gap-3 min-w-0">
+      <div className={`flex items-center gap-3 min-w-0 ${selectedUser.isGroup ? 'cursor-pointer' : ''}`}
+  onClick={selectedUser.isGroup ? onGroupProfileClick : undefined}>
         <div className="w-10 h-10 rounded-full bg-[#1f1f1f] border border-[#2a2a2a] flex items-center justify-center font-semibold text-sm overflow-hidden shrink-0">
           {selectedUser.dp ? (
             <img src={selectedUser.dp} className="w-full h-full object-cover" alt="" />

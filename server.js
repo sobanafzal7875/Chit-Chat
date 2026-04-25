@@ -1,7 +1,11 @@
 import { createServer } from 'node:http';
 import next from 'next';
 import { Server } from 'socket.io';
+import nextEnv from '@next/env';
 import { registerSocketHandlers } from './lib/realtime/socketHandlers.js';
+
+const { loadEnvConfig } = nextEnv;
+loadEnvConfig(process.cwd());
 
 const dev = process.env.NODE_ENV !== 'production';
 const hostname = 'localhost';

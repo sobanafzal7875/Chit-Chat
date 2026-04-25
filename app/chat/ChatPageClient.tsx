@@ -8,6 +8,7 @@ import { ProfileDrawer } from '@/components/chat/ProfileDrawer';
 import { CallModal } from '@/components/chat/CallModal';
 import { ActiveCallUI } from '@/components/chat/ActiveCallUI';
 import { WatchTogetherOverlay } from '@/components/chat/WatchTogetherOverlay';
+import { GroupProfileDrawer } from '@/components/chat/GroupProfileDrawer';
 
 export default function ChatPageClient() {
   const {
@@ -80,6 +81,11 @@ export default function ChatPageClient() {
     toggleSelfMute,
     deleteChat,
     unsendMessage,
+    setSelectedUser, // ✅ ADD
+    isGroupProfileOpen,
+    setIsGroupProfileOpen,
+    fetchRecentChats,
+    setMessages,
   } = useChat();
 
   if (!currentUser) {
@@ -157,6 +163,9 @@ export default function ChatPageClient() {
             onCall={callUser}
             onWatchTogether={startWatchTogether}
             onUnsendMessage={unsendMessage}
+            onBack={() => setSelectedUser(null)} // ✅ ADD
+            onGroupProfileClick={() => setIsGroupProfileOpen(true)}
+
           />
         </div>
       </div>
@@ -183,6 +192,21 @@ export default function ChatPageClient() {
         onSave={handleProfileUpdate}
       />
 
+      <GroupProfileDrawer
+        isOpen={isGroupProfileOpen}
+        group={selectedUser?.isGroup ? selectedUser : null}
+        currentUser={currentUser}
+        onClose={() => setIsGroupProfileOpen(false)}
+        onGroupUpdated={async () => {
+          await fetchRecentChats();
+        }}
+        onExitGroup={async () => {
+        setSelectedUser(null);
+        setMessages([]);
+        setIsGroupProfileOpen(false);
+        await fetchRecentChats();
+      }}
+      />
       <CallModal
         receivingCall={receivingCall}
         caller={caller}
