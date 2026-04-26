@@ -108,8 +108,14 @@ export function useChat() {
     if (res.ok) {
       const data = await res.json();
       const chats = data.chats || [];
-      localStorage.setItem('chats_cache', JSON.stringify(chats));
       setChats(chats);
+        try {
+          const chatsWithoutDp = chats.map((c: any) => ({ ...c, dp: undefined, members: undefined }));
+          localStorage.setItem('chats_cache', JSON.stringify(chatsWithoutDp));
+        } catch {
+          localStorage.removeItem('chats_cache'); // quota exceed ho to cache clear karo
+        }
+
     }
   } catch (e) {
     console.error('Error fetching chats:', e);
