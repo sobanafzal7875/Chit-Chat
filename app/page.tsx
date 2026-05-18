@@ -1,8 +1,10 @@
 import AuthForm from '@/components/auth/AuthForm';
+// import GlobeLanding from '@/components/Landing/GlobeLanding';
 
 export default function Home() {
   return (
     <div className="min-h-dvh overflow-y-auto flex flex-col items-center justify-center bg-background relative selection:bg-primary/30">
+      {/* <GlobeLanding /> */}
       {/* Background decorations for a professional/modern look */}
       <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-primary/10 rounded-full blur-[120px] pointer-events-none" />
       <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-primary/5 rounded-full blur-[120px] pointer-events-none" />
