@@ -22,10 +22,38 @@ export default function LandingClient() {
   const [showAuth, setShowAuth] = useState(false)
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login')
   const [mounted, setMounted] = useState(false)
+  
+  // Loader state
+  const [globeLoaded, setGlobeLoaded] = useState(false)
+  const [loaderVisible, setLoaderVisible] = useState(true)
+  const [loadingProgress, setLoadingProgress] = useState(0)
 
   useEffect(() => {
     setMounted(true)
+    
+    // Simulate loading progress that pauses at 90%
+    const interval = setInterval(() => {
+      setLoadingProgress(p => {
+        if (p >= 90) {
+          clearInterval(interval)
+          return 90
+        }
+        return p + Math.floor(Math.random() * 10) + 5
+      })
+    }, 150)
+    
+    return () => clearInterval(interval)
   }, [])
+
+  useEffect(() => {
+    if (globeLoaded) {
+      setLoadingProgress(100)
+      const timer = setTimeout(() => {
+        setLoaderVisible(false)
+      }, 700) // Wait a bit for the bar to hit 100% before sliding up
+      return () => clearTimeout(timer)
+    }
+  }, [globeLoaded])
 
   useEffect(() => {
     if (!mounted || !scrollRef.current) return
@@ -94,10 +122,32 @@ export default function LandingClient() {
   }
 
   return (
-    <div ref={scrollRef} className="relative bg-[#050505] min-h-[250vh]">
-      <div className="fixed inset-0 z-0">
-        <GlobeScene scrollProgress={progressRef} />
-      </div>
+    <>
+      {loaderVisible && (
+        <div 
+          className={`fixed inset-0 z-[100]
+          flex flex-col items-center justify-center
+          bg-[#050505]
+          transform transition-transform
+          duration-1000 ease-in-out
+          will-change-transform ${loadingProgress === 100 ? '-translate-y-full' : 'translate-y-0'}`}
+        >
+          <h1 className="text-5xl md:text-7xl font-bold text-white mb-10 tracking-tight">
+            Nex<span className="text-[#FF781F]">ora</span>
+          </h1>
+          <div className="w-64 h-[2px] bg-white/10 overflow-hidden">
+            <div 
+              className="h-full bg-[#FF781F] transition-all duration-300 ease-out"
+              style={{ width: `${loadingProgress}%` }}
+            />
+          </div>
+        </div>
+      )}
+
+      <div ref={scrollRef} className="relative bg-[#050505] min-h-[250vh]">
+        <div className="fixed inset-0 z-0">
+          <GlobeScene scrollProgress={progressRef} onLoad={() => setGlobeLoaded(true)} />
+        </div>
 
       <div className="relative z-10 pointer-events-none">
         <section className="h-screen relative">
@@ -224,5 +274,6 @@ export default function LandingClient() {
         </div>
       )}
     </div>
+    </>
   )
 }
