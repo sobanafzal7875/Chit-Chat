@@ -20,12 +20,14 @@ export default function LandingClient() {
   const scrollRef = useRef<HTMLDivElement>(null)
   const progressRef = useRef(0)
   const [showAuth, setShowAuth] = useState(false)
-  const [authMode, setAuthMode] = useState<'login' | 'signup'>('login')
+  const [authMode, setAuthMode] = useState<'login' | 'register'>('login')
   const [mounted, setMounted] = useState(false)
   
   // Loader state
   const [globeLoaded, setGlobeLoaded] = useState(false)
-  const [loaderVisible, setLoaderVisible] = useState(true)
+  // const [loaderVisible, setLoaderVisible] = useState(true)
+  const [loaderSlideUp, setLoaderSlideUp] = useState(false)
+const [loaderGone, setLoaderGone] = useState(false)
   const [loadingProgress, setLoadingProgress] = useState(0)
 
   useEffect(() => {
@@ -45,16 +47,23 @@ export default function LandingClient() {
     return () => clearInterval(interval)
   }, [])
 
-  useEffect(() => {
-    if (globeLoaded) {
-      setLoadingProgress(100)
-      const timer = setTimeout(() => {
-        setLoaderVisible(false)
-      }, 700) // Wait a bit for the bar to hit 100% before sliding up
-      return () => clearTimeout(timer)
-    }
-  }, [globeLoaded])
-
+  // useEffect(() => {
+  //   if (globeLoaded) {
+  //     setLoadingProgress(100)
+  //     const timer = setTimeout(() => {
+  //       setLoaderVisible(false)
+  //     }, 1400) // Wait a bit for the bar to hit 100% before sliding up
+  //     return () => clearTimeout(timer)
+  //   }
+  // }, [globeLoaded])
+useEffect(() => {
+  if (globeLoaded) {
+    setLoadingProgress(100)
+    const t1 = setTimeout(() => setLoaderSlideUp(true), 400)   // 400ms baad slide shuru
+    const t2 = setTimeout(() => setLoaderGone(true), 1400)     // 1400ms baad DOM se hata
+    return () => { clearTimeout(t1); clearTimeout(t2) }
+  }
+}, [globeLoaded])
   useEffect(() => {
     if (!mounted || !scrollRef.current) return
 
@@ -90,6 +99,31 @@ export default function LandingClient() {
           },
         }
       )
+      // Feature cards scatter animation
+      gsap.fromTo(
+        '.feature-card',
+        { 
+          opacity: 0, 
+          scale: 0,
+          x: 0,
+          y: 0,
+        },
+        {
+          opacity: 1,
+          scale: 1,
+          x: 0,
+          y: 0,
+          ease: 'back.out(1.7)',
+          stagger: 0.15,
+          scrollTrigger: {
+            trigger: '.feature-card',
+            start: 'top 80%',
+            end: 'top 30%',
+            scrub: false,
+            toggleActions: 'play none none reverse',
+          },
+        }
+      )
     }, scrollRef)
 
     const st = ScrollTrigger.create({
@@ -108,7 +142,7 @@ export default function LandingClient() {
     }
   }, [mounted])
 
-  const openAuth = (mode: 'login' | 'signup') => {
+  const openAuth = (mode: 'login' | 'register') => {
     setAuthMode(mode)
     setShowAuth(true)
   }
@@ -123,15 +157,15 @@ export default function LandingClient() {
 
   return (
     <>
-      {loaderVisible && (
-        <div 
-          className={`fixed inset-0 z-[100]
-          flex flex-col items-center justify-center
-          bg-[#050505]
-          transform transition-transform
-          duration-1000 ease-in-out
-          will-change-transform ${loadingProgress === 100 ? '-translate-y-full' : 'translate-y-0'}`}
-        >
+      {!loaderGone && (
+  <div className={`fixed inset-0 z-[100]
+    flex flex-col items-center justify-center
+    bg-[#050505]
+    transform transition-transform
+    duration-1000 ease-in-out
+    will-change-transform
+    ${loaderSlideUp ? '-translate-y-full' : 'translate-y-0'}`}
+  >
           <h1 className="text-5xl md:text-7xl font-bold text-white mb-10 tracking-tight">
             Nex<span className="text-[#FF781F]">ora</span>
           </h1>
@@ -192,7 +226,7 @@ export default function LandingClient() {
               </button>
 
               <button
-                onClick={() => openAuth('signup')}
+                onClick={() => openAuth('register')}
                 className="px-8 py-3.5 border border-white/20 text-white font-medium rounded-full backdrop-blur-xl bg-white/5 hover:bg-white/10 hover:border-[#FF781F]/50 transition-all duration-300"
               >
                 Sign Up
@@ -212,54 +246,59 @@ export default function LandingClient() {
           </div>
         </section>
 
-        <section className="h-screen relative flex items-center justify-center">
-          <div className="relative w-full max-w-6xl px-4 pointer-events-auto">
-            <div className="absolute top-12 left-10 max-w-sm rounded-[2rem] border border-white/10 bg-white/5 p-7 backdrop-blur-xl shadow-[0_30px_90px_rgba(0,0,0,0.18)]">
-              <span className="text-xs uppercase tracking-[0.3em] text-white/40 mb-4 block">
-                Global network
-              </span>
-              <h2 className="text-3xl font-semibold text-white mb-3">
-                Real-time presence across regions
-              </h2>
-              <p className="text-sm text-gray-400 leading-relaxed">
-                Users appear on the globe from different regions, then connect
-                through secure channels that light up the network.
-              </p>
-            </div>
+        <section className="relative min-h-screen md:h-screen flex items-center justify-center py-16 md:py-0">
+  <div className="relative w-full px-4 pointer-events-auto">
+    
+    {/* Mobile: stacked cards */}
+    <div className="flex flex-col gap-4 lg:hidden">
+      {[
+        { tag: 'Global network', title: 'Real-time presence across regions', desc: 'Users appear on the globe from different regions, then connect through secure channels that light up the network.' },
+        { tag: 'Secure messaging', title: null, desc: 'End-to-end encryption keeps every chat private, even when the world is watching.' },
+        { tag: 'Watch together', title: null, desc: 'Share streams, reactions, and live events with your team in one connected interface.' },
+        { tag: 'Voice & calls', title: null, desc: 'Voice and video sessions connect teammates with crystal clarity and minimal latency.' },
+      ].map((card) => (
+        <div key={card.tag} className="rounded-[2rem] border border-white/10 bg-white/5 p-7 backdrop-blur-xl">
+          <span className="text-xs uppercase tracking-[0.3em] text-white/40 mb-4 block">{card.tag}</span>
+          {card.title && <h2 className="text-2xl font-semibold text-white mb-3">{card.title}</h2>}
+          <p className="text-sm text-gray-400 leading-relaxed">{card.desc}</p>
+        </div>
+      ))}
+    </div>
 
-            <div className="absolute top-24 right-10 max-w-xs rounded-[2rem] border border-white/10 bg-white/5 p-7 backdrop-blur-xl shadow-[0_30px_90px_rgba(0,0,0,0.18)]">
-              <span className="text-sm uppercase tracking-[0.2em] text-white/40 mb-3 block">
-                Secure messaging
-              </span>
-              <p className="text-sm text-gray-400 leading-relaxed">
-                End-to-end encryption keeps every chat private, even when the
-                world is watching.
-              </p>
-            </div>
+    {/* Desktop: scattered absolute layout with GSAP animation */}
+    <div className="hidden lg:block relative h-[85vh]">
+      <div
+        className="feature-card absolute top-[5%] left-[5%] max-w-sm rounded-[2rem] border border-white/10 bg-white/5 p-7 backdrop-blur-xl shadow-[0_30px_90px_rgba(0,0,0,0.18)]"
+      >
+        <span className="text-xs uppercase tracking-[0.3em] text-white/40 mb-4 block">Global network</span>
+        <h2 className="text-3xl font-semibold text-white mb-3">Real-time presence across regions</h2>
+        <p className="text-sm text-gray-400 leading-relaxed">Users appear on the globe from different regions, then connect through secure channels that light up the network.</p>
+      </div>
 
-            <div className="absolute bottom-14 left-20 max-w-xs rounded-[2rem] border border-white/10 bg-white/5 p-7 backdrop-blur-xl shadow-[0_30px_90px_rgba(0,0,0,0.18)]">
-              <span className="text-sm uppercase tracking-[0.2em] text-white/40 mb-3 block">
-                Watch together
-              </span>
-              <p className="text-sm text-gray-400 leading-relaxed">
-                Share streams, reactions, and live events with your team in one
-                connected interface.
-              </p>
-            </div>
+      <div
+        className="feature-card absolute top-[10%] right-[5%] max-w-xs rounded-[2rem] border border-white/10 bg-white/5 p-7 backdrop-blur-xl shadow-[0_30px_90px_rgba(0,0,0,0.18)]"
+      >
+        <span className="text-sm uppercase tracking-[0.2em] text-white/40 mb-3 block">Secure messaging</span>
+        <p className="text-sm text-gray-400 leading-relaxed">End-to-end encryption keeps every chat private, even when the world is watching.</p>
+      </div>
 
-            <div className="absolute bottom-20 right-[calc(50%-16rem)] max-w-sm rounded-[2rem] border border-white/10 bg-white/5 p-7 backdrop-blur-xl shadow-[0_30px_90px_rgba(0,0,0,0.18)]">
-              <span className="text-sm uppercase tracking-[0.2em] text-white/40 mb-3 block">
-                Voice & calls
-              </span>
-              <p className="text-sm text-gray-400 leading-relaxed">
-                Voice and video sessions connect teammates with crystal clarity
-                and minimal latency.
-              </p>
-            </div>
+      <div
+        className="feature-card absolute bottom-[5%] left-[9%] max-w-xs rounded-[2rem] border border-white/10 bg-white/5 p-7 backdrop-blur-xl shadow-[0_30px_90px_rgba(0,0,0,0.18)]"
+      >
+        <span className="text-sm uppercase tracking-[0.2em] text-white/40 mb-3 block">Watch together</span>
+        <p className="text-sm text-gray-400 leading-relaxed">Share streams, reactions, and live events with your team in one connected interface.</p>
+      </div>
 
-            <div className="relative h-[72vh] rounded-[3rem] border border-white/5 bg-black/20" />
-          </div>
-        </section>
+      <div
+        className="feature-card absolute bottom-[10%] right-[10%] max-w-sm rounded-[2rem] border border-white/10 bg-white/5 p-7 backdrop-blur-xl shadow-[0_30px_90px_rgba(0,0,0,0.18)]"
+      >
+        <span className="text-sm uppercase tracking-[0.2em] text-white/40 mb-3 block">Voice & calls</span>
+        <p className="text-sm text-gray-400 leading-relaxed">Voice and video sessions connect teammates with crystal clarity and minimal latency.</p>
+      </div>
+    </div>
+
+  </div>
+</section>
       </div>
 
       {showAuth && (
@@ -269,7 +308,7 @@ export default function LandingClient() {
             onClick={() => setShowAuth(false)}
           />
           <div className="relative z-10 w-full max-w-md">
-            <AuthForm />
+            <AuthForm mode={authMode}/>
           </div>
         </div>
       )}

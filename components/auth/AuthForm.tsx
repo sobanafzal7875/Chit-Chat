@@ -7,9 +7,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useRouter } from 'next/navigation';
 
-export default function AuthForm() {
+export default function AuthForm({mode} : {mode: 'login' | 'register'}) {
+  const [isLogin, setIsLogin] = useState(mode === 'login')
   const router = useRouter();
-  const [isLogin, setIsLogin] = useState(true);
+  // const [isLogin, setIsLogin] = useState(true);
   const [formData, setFormData] = useState({
     name: '',
     username: '',
