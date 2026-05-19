@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server';
 import { connectToDatabase } from '@/lib/db';
+import { CloudinaryService } from '@/lib/services/CloudinaryService';
 import { UserService } from '@/lib/services/UserService';
 import { handleApiError, createSuccessResponse } from '@/lib/utils/apiResponse';
 import { authenticateUser } from '@/lib/middleware/auth';
@@ -32,9 +33,13 @@ export async function PUT(request: NextRequest) {
 
     const { name, dp, currentPassword, newPassword } = await request.json();
 
+    const finalDp = dp && typeof dp === 'string' && dp.startsWith('data:')
+      ? await CloudinaryService.uploadImage(dp)
+      : dp;
+
     const user = await UserService.updateUser(authResult.userId!, {
       name,
-      dp,
+      dp: finalDp,
       currentPassword,
       newPassword,
     });

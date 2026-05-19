@@ -76,3 +76,7 @@ export function handleApiError(error: unknown): NextResponse {
 export function createSuccessResponse(data: any, status: number = 200): NextResponse {
   return NextResponse.json(data, { status });
 }
+
+export function createErrorResponse(data: any, status: number = 400): NextResponse {
+  return NextResponse.json(data, { status });
+}

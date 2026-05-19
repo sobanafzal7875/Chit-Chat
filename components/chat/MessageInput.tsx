@@ -68,7 +68,7 @@ export function MessageInput({
           ref={fileInputRef}
           onChange={handleFileSelect}
           className="hidden"
-          accept="image/*,video/*,audio/*,application/*"
+          accept="image/*"
         />
         <Button
           variant="outline"

@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server';
 import { connectToDatabase } from '@/lib/db';
+import { CloudinaryService } from '@/lib/services/CloudinaryService';
 import { GroupService } from '@/lib/services/GroupService';
 import { handleApiError, createSuccessResponse } from '@/lib/utils/apiResponse';
 import { authenticateUser } from '@/lib/middleware/auth';
@@ -13,7 +14,11 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     if (!authResult.success) return createSuccessResponse({ error: authResult.error }, 401);
 
     const { name, dp } = await request.json();
-    const group = await GroupService.updateGroup(id, authResult.username, { name, dp });
+    const finalDp = dp && typeof dp === 'string' && dp.startsWith('data:')
+      ? await CloudinaryService.uploadImage(dp, 'chit-chat/groups')
+      : dp;
+
+    const group = await GroupService.updateGroup(id, authResult.username, { name, dp: finalDp });
     const io = getIo();
     if (io) {
       io.to(id).emit('group_updated', group);

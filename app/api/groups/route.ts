@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server';
 import { connectToDatabase } from '@/lib/db';
+import { CloudinaryService } from '@/lib/services/CloudinaryService';
 import { GroupService } from '@/lib/services/GroupService';
 import { handleApiError, createSuccessResponse } from '@/lib/utils/apiResponse';
 import { authenticateUser } from '@/lib/middleware/auth';
@@ -19,11 +20,15 @@ export async function POST(request: NextRequest) {
       return createSuccessResponse({ error: 'Name and members are required' }, 400);
     }
 
+    const finalDp = dp && typeof dp === 'string' && dp.startsWith('data:')
+      ? await CloudinaryService.uploadImage(dp, 'chit-chat/groups')
+      : dp;
+
     const group = await GroupService.createGroup({
       name,
       admin: authResult.username,
       members,
-      dp,
+      dp: finalDp,
     });
 
     return createSuccessResponse({ group }, 201);

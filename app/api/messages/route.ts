@@ -1,8 +1,9 @@
 import { NextRequest } from 'next/server';
 import { connectToDatabase } from '@/lib/db';
 import { MessageService } from '@/lib/services/MessageService';
-import { handleApiError, createSuccessResponse } from '@/lib/utils/apiResponse';
+import { handleApiError, createSuccessResponse, createErrorResponse } from '@/lib/utils/apiResponse';
 import { authenticateUser } from '@/lib/middleware/auth';
+import { CloudinaryService } from '@/lib/services/CloudinaryService';
 
 export async function GET(request: NextRequest) {
   try {
@@ -57,13 +58,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // if(fileType !== 'image' && fileUrl !== 'string') { return createErrorResponse(
+    //     { error: 'Invalid file type or URL' },
+    //     400
+    //   ); }
+        const ImageUrl = fileUrl && typeof fileUrl === 'string' && fileUrl.startsWith('data:')
+          ? await CloudinaryService.uploadImage(fileUrl)
+          : fileUrl;
     let message;
     if (groupId) {
       message = await MessageService.sendGroupMessage(
         authResult.username,
         groupId,
         hasBody ? content.trim() : '',
-        fileUrl,
+        ImageUrl,
         fileType
       );
     } else if (receiver) {
@@ -71,11 +79,11 @@ export async function POST(request: NextRequest) {
         authResult.username,
         receiver,
         hasBody ? content.trim() : '',
-        fileUrl,
+        ImageUrl,
         fileType
       );
     } else {
-      return createSuccessResponse(
+      return createErrorResponse(
         { error: 'Either receiver (username) or groupId is required' },
         400
       );
