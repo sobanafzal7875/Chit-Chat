@@ -18,7 +18,7 @@ export interface ChatListItem {
   dp?: string;
   unreadCount: number;
   isGroup?: boolean;
-  lastMessage?: { content?: string; fileUrl?: string; unsent?: boolean };
+  lastMessage?: { content?: string; fileUrl?: string; unsent?: boolean; createdAt?: string; };
   members?: { username: string; name?: string; dp?: string }[];
   admin?: any;
 }

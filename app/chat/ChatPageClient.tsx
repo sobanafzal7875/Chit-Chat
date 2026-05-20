@@ -1,7 +1,8 @@
 'use client';
 
+import { useState } from 'react';
 import { useChat } from '@/hooks/useChat';
-import { Navbar } from '@/components/chat/Navbar';
+import { Sidebar } from '@/components/chat/Sidebar';
 import { ChatSidebar } from '@/components/chat/ChatSidebar';
 import { ChatRoomPanel } from '@/components/chat/ChatRoomPanel';
 import { ProfileDrawer } from '@/components/chat/ProfileDrawer';
@@ -9,8 +10,15 @@ import { CallModal } from '@/components/chat/CallModal';
 import { ActiveCallUI } from '@/components/chat/ActiveCallUI';
 import { WatchTogetherOverlay } from '@/components/chat/WatchTogetherOverlay';
 import { GroupProfileDrawer } from '@/components/chat/GroupProfileDrawer';
+import dynamic from 'next/dynamic'
+
+const GlobeScene = dynamic(() => import('@/components/Landing/GlobeScene'), {
+  ssr: false,
+})
 
 export default function ChatPageClient() {
+  const [activeSection, setActiveSection] = useState<'chats' | 'calls' | 'watch' | 'groups' | 'encrypted'>('chats');
+
   const {
     currentUser,
     chats,
@@ -81,7 +89,7 @@ export default function ChatPageClient() {
     toggleSelfMute,
     deleteChat,
     unsendMessage,
-    setSelectedUser, // ✅ ADD
+    setSelectedUser,
     isGroupProfileOpen,
     setIsGroupProfileOpen,
     fetchRecentChats,
@@ -100,73 +108,88 @@ export default function ChatPageClient() {
   }
 
   return (
-    <div className="h-dvh max-h-[100dvh] overflow-hidden flex flex-col bg-black text-foreground">
-      <audio ref={myAudio} autoPlay muted className="hidden" />
+<div className="h-dvh max-h-[100dvh] overflow-hidden flex bg-black text-foreground relative">
+
+  {/* Globe background */}
+  <div className="absolute inset-0 z-0 pointer-events-none opacity-40">
+    <GlobeScene scrollProgress={{ current: 0 }} /> 
+     </div>
+
+       <audio ref={myAudio} autoPlay muted className="hidden" />
       <audio ref={userAudio} autoPlay className="hidden" />
 
-      <Navbar currentUser={currentUser} onProfileClick={openProfile} onLogout={logout} />
+      {/* Left Sidebar */}
+      <Sidebar
+        currentUser={currentUser}
+        activeSection={activeSection}
+        onSectionChange={setActiveSection}
+        onProfileClick={openProfile}
+        onLogout={logout}
+      />
 
-      <div className="flex-1 min-h-0 w-full max-w-6xl mx-auto px-3 sm:px-4 pb-3 pt-2 flex flex-col">
-        <div className="flex-1 min-h-0 grid grid-cols-1 md:grid-cols-4 gap-3">
-          <ChatSidebar
-            chats={chats}
-            searchQuery={searchQuery}
-            searchResults={searchResults}
-            isSearching={isSearching}
-            selectedUser={selectedUser}
-            currentUser={currentUser}
-            isGroupCreationMode={isGroupCreationMode}
-            groupCreationStep={groupCreationStep}
-            groupName={groupName}
-            selectedMembers={selectedMembers}
-            onSearchQueryChange={setSearchQuery}
-            onSearchUsers={searchUsers}
-            onUserSelect={selectUser}
-            onGroupCreate={createGroup}
-            onStartGroupCreation={startGroupCreation}
-            onCancelGroupCreation={() => {
-              setIsGroupCreationMode(false);
-              setGroupCreationStep('select');
-              setSelectedMembers([]);
-              setGroupName('');
-              setSearchQuery('');
-              setSearchResults([]);
-            }}
-            onProceedToNameStep={() => {
-              if (selectedMembers.length === 0) return;
-              setGroupCreationStep('name');
-            }}
-            onGroupNameChange={setGroupName}
-            onMemberToggle={(username) => {
-              if (selectedMembers.includes(username)) {
-                setSelectedMembers((p) => p.filter((m) => m !== username));
-              } else {
-                setSelectedMembers((p) => [...p, username]);
-              }
-            }}
-            onDeleteChat={deleteChat}
-          />
+      {/* Main content area */}
+      <div className="flex-1 min-w-0 flex flex-col h-full pb-14 md:pb-0">
+        <div className="flex-1 min-h-0 w-full max-w-6xl mx-auto px-3 sm:px-4 pb-3 pt-3 flex flex-col">
+          <div className="flex-1 min-h-0 grid grid-cols-1 md:grid-cols-4 gap-3">
+            <ChatSidebar
+              chats={chats}
+              searchQuery={searchQuery}
+              searchResults={searchResults}
+              isSearching={isSearching}
+              selectedUser={selectedUser}
+              currentUser={currentUser}
+              isGroupCreationMode={isGroupCreationMode}
+              groupCreationStep={groupCreationStep}
+              groupName={groupName}
+              selectedMembers={selectedMembers}
+              onSearchQueryChange={setSearchQuery}
+              onSearchUsers={searchUsers}
+              onUserSelect={selectUser}
+              onGroupCreate={createGroup}
+              onStartGroupCreation={startGroupCreation}
+              onCancelGroupCreation={() => {
+                setIsGroupCreationMode(false);
+                setGroupCreationStep('select');
+                setSelectedMembers([]);
+                setGroupName('');
+                setSearchQuery('');
+                setSearchResults([]);
+              }}
+              onProceedToNameStep={() => {
+                if (selectedMembers.length === 0) return;
+                setGroupCreationStep('name');
+              }}
+              onGroupNameChange={setGroupName}
+              onMemberToggle={(username) => {
+                if (selectedMembers.includes(username)) {
+                  setSelectedMembers((p) => p.filter((m) => m !== username));
+                } else {
+                  setSelectedMembers((p) => [...p, username]);
+                }
+              }}
+              onDeleteChat={deleteChat}
+            />
 
-          <ChatRoomPanel
-            currentUser={currentUser}
-            selectedUser={selectedUser}
-            messages={messages}
-            newMessage={newMessage}
-            fileAttachment={fileAttachment}
-            callAccepted={callAccepted}
-            calling={calling}
-            isWatchTogether={isWatchTogether}
-            onNewMessageChange={setNewMessage}
-            onSendMessage={sendMessage}
-            onFileAttach={handleFileAttach}
-            onRemoveAttachment={() => setFileAttachment(null)}
-            onCall={callUser}
-            onWatchTogether={startWatchTogether}
-            onUnsendMessage={unsendMessage}
-            onBack={() => setSelectedUser(null)} // ✅ ADD
-            onGroupProfileClick={() => setIsGroupProfileOpen(true)}
-
-          />
+            <ChatRoomPanel
+              currentUser={currentUser}
+              selectedUser={selectedUser}
+              messages={messages}
+              newMessage={newMessage}
+              fileAttachment={fileAttachment}
+              callAccepted={callAccepted}
+              calling={calling}
+              isWatchTogether={isWatchTogether}
+              onNewMessageChange={setNewMessage}
+              onSendMessage={sendMessage}
+              onFileAttach={handleFileAttach}
+              onRemoveAttachment={() => setFileAttachment(null)}
+              onCall={callUser}
+              onWatchTogether={startWatchTogether}
+              onUnsendMessage={unsendMessage}
+              onBack={() => setSelectedUser(null)}
+              onGroupProfileClick={() => setIsGroupProfileOpen(true)}
+            />
+          </div>
         </div>
       </div>
 
@@ -201,12 +224,13 @@ export default function ChatPageClient() {
           await fetchRecentChats();
         }}
         onExitGroup={async () => {
-        setSelectedUser(null);
-        setMessages([]);
-        setIsGroupProfileOpen(false);
-        await fetchRecentChats();
-      }}
+          setSelectedUser(null);
+          setMessages([]);
+          setIsGroupProfileOpen(false);
+          await fetchRecentChats();
+        }}
       />
+
       <CallModal
         receivingCall={receivingCall}
         caller={caller}
