@@ -69,7 +69,7 @@ export function Sidebar({
   return (
     <>
       {/* Desktop Sidebar */}
-      <aside className="hidden md:flex flex-col w-[72px] h-full shrink-0 border-r border-white/[0.06] bg-white/[0.02] backdrop-blur-xl relative z-20">
+      <aside className="hidden md:flex flex-col w-[72px] h-full shrink-0 border-r border-white/[0.06] bg-white/[0.03] backdrop-blur-xs relative z-20">
         {/* Top glow */}
         <div className="absolute top-0 left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-[#FF781F]/40 to-transparent" />
 

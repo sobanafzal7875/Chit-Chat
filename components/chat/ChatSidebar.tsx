@@ -72,10 +72,12 @@ export function ChatSidebar({
 
   return (
     <div
-      className={`md:col-span-1 bg-[#111111] rounded-2xl border border-[#242424] overflow-hidden flex flex-col h-full min-h-0 ${
+      className={`md:col-span-1 border-r border-white/[0.06] bg-white/[0.04] backdrop-blur-xs  overflow-hidden flex flex-col h-full min-h-0 ${
         selectedUser && !isGroupCreationMode ? 'hidden md:flex' : 'flex'
       }`}
     >
+       {/* Top glow */}
+        <div className="absolute top-0 left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-[#FF781F]/40 to-transparent" />
       {/* Header */}
       <div className="px-4 pt-4 pb-3 shrink-0">
         {/* Title row */}

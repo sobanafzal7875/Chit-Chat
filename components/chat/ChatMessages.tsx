@@ -22,23 +22,31 @@ interface ChatMessagesProps {
     members?: GroupMember[];
   } | null;
   onUnsend?: (messageId: string) => void;
-  onBack?: () => void; // ✅ ADD
+  onBack?: () => void;
 }
 
 function senderUsername(sender: Message['sender']): string {
-  if (typeof sender === 'object' && sender !== null && 'username' in sender) {
-    return sender.username;
-  }
+  if (typeof sender === 'object' && sender !== null && 'username' in sender) return sender.username;
   return String(sender);
 }
 
 function senderDisplayName(sender: Message['sender'], members: GroupMember[]): string {
   const u = senderUsername(sender);
-  if (typeof sender === 'object' && sender !== null && 'name' in sender && sender.name) {
-    return sender.name;
-  }
+  if (typeof sender === 'object' && sender !== null && 'name' in sender && sender.name) return sender.name;
   const m = members.find((x) => x.username === u);
   return m?.name || u;
+}
+
+// Group messages by date
+function getDateLabel(dateString: string): string {
+  const date = new Date(dateString);
+  const today = new Date();
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+
+  if (date.toDateString() === today.toDateString()) return 'Today';
+  if (date.toDateString() === yesterday.toDateString()) return 'Yesterday';
+  return date.toLocaleDateString([], { month: 'long', day: 'numeric', year: 'numeric' });
 }
 
 export function ChatMessages({
@@ -46,10 +54,11 @@ export function ChatMessages({
   currentUser,
   selectedUser,
   onUnsend,
-  onBack, // ✅ ADD
+  onBack,
 }: ChatMessagesProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
 
   const closeLightbox = useCallback(() => setLightboxUrl(null), []);
 
@@ -59,429 +68,210 @@ export function ChatMessages({
 
   useEffect(() => {
     if (!lightboxUrl) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') closeLightbox();
-    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') closeLightbox(); };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [lightboxUrl, closeLightbox]);
 
-  const formatTime = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  };
+  const formatTime = (dateString: string) =>
+    new Date(dateString).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
   const members = selectedUser?.members ?? [];
   const isGroup = Boolean(selectedUser?.isGroup);
 
+  // Empty / no selection state
   if (!selectedUser) {
     return (
-      <div className="flex-1 flex items-center justify-center text-muted-foreground">
-        <div className="text-center">
-          <svg className="w-16 h-16 mx-auto mb-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-          </svg>
-          <p className="text-lg">Select a chat to start messaging</p>
+      <div className="flex-1 flex items-center justify-center relative z-30">
+        <div className="text-center space-y-3">
+          <div className="w-30 h-15 rounded-full flex items-center justify-center mx-auto">
+            <img
+              src="/NexoraLogo.png"
+              alt="Nexora Logo"
+              className="w-30 h-30 opacity-80 object-contain select-none pointer-events-none"
+            />
+          </div>
+          <p className="text-[14px] text-muted-foreground/70">Select a chat to start messaging</p>
         </div>
       </div>
     );
   }
 
-  
+  return (
+    <>
+      {/* Mobile back bar */}
+      {onBack && (
+        <div className="md:hidden shrink-0 px-3 py-2 border-b border-[#1e1e1e] bg-[#0d0d0d]">
+          <button
+            type="button"
+            onClick={onBack}
+            className="flex items-center gap-2 text-[13px] text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7"/>
+            </svg>
+            Back
+          </button>
+        </div>
+      )}
 
-//   return (
-//     <>
-//         {/* ✅ MOBILE BACK BUTTON — YE ADD KARO */}
-//     {onBack && selectedUser && (
-//       <div className="md:hidden shrink-0 px-3 py-2 border-b border-[#2a2a2a] bg-[#0d0d0d]">
-//         <button
-//           type="button"
-//           onClick={onBack}
-//           className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
-//         >
-//           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-//             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-//           </svg>
-//           Back
-//         </button>
-//       </div>
-//     )}
+      {/* Messages scroll area */}
+      <div className="flex-1 overflow-y-auto overscroll-contain px-4 py-4 space-y-1 reltive z-10">
+        {messages.length === 0 && (
+          <div className="flex flex-col items-center justify-center h-full py-16 text-muted-foreground/40">
+            <svg className="w-10 h-10 mb-3 opacity-30" fill="none" stroke="currentColor" strokeWidth="1.25" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
+            </svg>
+            <p className="text-[12px]">No messages yet. Say hi! 👋</p>
+          </div>
+        )}
 
-//     <div className="flex-1 overflow-y-auto p-4 space-y-3">
-//     {/* ... baaki sab same ... */}
-//     {/* {onBack && (
-//   <div className="md:hidden shrink-0 px-3 py-2 border-b border-[#2a2a2a] bg-[#0d0d0d]">
-//     <button
-//       type="button"
-//       onClick={onBack}
-//       className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
-//     >
-//       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-//         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-//       </svg>
-//       Back
-//     </button>
-//   </div>
-// )} */}
-//       <div className="flex-1 overflow-y-auto p-4 space-y-3">
-//         {messages.map((msg, idx) => {
-//           const senderName = senderUsername(msg.sender);
-//           const isOwnMessage = senderName === currentUser.username;
-//           const prevSender = idx > 0 ? senderUsername(messages[idx - 1].sender) : '';
-//           const showAvatar = !isOwnMessage && (idx === 0 || prevSender !== senderName);
-//           const showGroupSender =
-//             isGroup && (idx === 0 || prevSender !== senderName);
-//           const member = members.find((m) => m.username === senderName);
-//           const avatarSrc = isGroup ? member?.dp : selectedUser.dp;
-//           const avatarLetter = (
-//             (isGroup ? member?.name : selectedUser.name) ||
-//             senderName
-//           )
-//             .charAt(0)
-//             .toUpperCase();
+        {messages.map((msg, idx) => {
+          const senderName = senderUsername(msg.sender);
+          const isOwn = senderName === currentUser.username;
+          const prevMsg = messages[idx - 1];
+          const nextMsg = messages[idx + 1];
+          const prevSender = prevMsg ? senderUsername(prevMsg.sender) : '';
+          const nextSender = nextMsg ? senderUsername(nextMsg.sender) : '';
 
-//           const isUnsent = Boolean(msg.unsent);
-//           const hasImage =
-//             Boolean(msg.fileUrl) && msg.fileType?.startsWith('image/') && !isUnsent;
-//           const hasCaption = Boolean(msg.content?.trim());
-//           const imageOnly = hasImage && !hasCaption;
-//           const imageCaptionCombo = hasImage && hasCaption;
+          const isFirstInGroup = prevSender !== senderName;
+          const isLastInGroup = nextSender !== senderName;
 
-//           return (
-//             <Fragment key={msg._id}>
-//               {showGroupSender && (
-//                 <div
-//                   className={`text-[11px] font-semibold text-muted-foreground ${
-//                     isOwnMessage ? 'text-right pr-1' : 'pl-11'
-//                   }`}
-//                 >
-//                   {senderDisplayName(msg.sender, members)}
-//                   {isOwnMessage ? ' (you)' : ''}
-//                 </div>
-//               )}
+          const showAvatar = !isOwn && isFirstInGroup;
+          const showGroupSender = isGroup && isFirstInGroup;
 
-//               <div className={`flex gap-3 ${isOwnMessage ? 'justify-end' : 'justify-start'}`}>
-//                 {!isOwnMessage && (
-//                   <div className="w-8 shrink-0 flex justify-center mt-1">
-//                     {showAvatar ? (
-//                       <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold overflow-hidden">
-//                         {avatarSrc ? (
-//                           <img src={avatarSrc} className="w-full h-full object-cover" alt="" />
-//                         ) : (
-//                           avatarLetter
-//                         )}
-//                       </div>
-//                     ) : null}
-//                   </div>
-//                 )}
+          const member = members.find((m) => m.username === senderName);
+          const avatarSrc = isGroup ? member?.dp : selectedUser.dp;
+          const avatarLetter = ((isGroup ? member?.name : selectedUser.name) || senderName).charAt(0).toUpperCase();
 
-//                 <div className={`max-w-[min(100%,280px)] ${isOwnMessage ? 'order-first' : ''}`}>
-//                   <div
-//                     className={
-//                       isUnsent
-//                         ? `rounded-xl px-3 py-2 ${
-//                             isOwnMessage
-//                               ? 'bg-primary/90 text-white'
-//                               : 'bg-muted'
-//                           }`
-//                         : imageCaptionCombo
-//                           ? ''
-//                           : imageOnly
-//                             ? `overflow-hidden rounded-xl ${
-//                                 isOwnMessage
-//                                   ? 'ring-1 ring-primary/25'
-//                                   : 'ring-1 ring-border/60'
-//                               }`
-//                             : `rounded-xl px-3 py-2 ${
-//                                 isOwnMessage
-//                                   ? 'bg-primary text-white'
-//                                   : 'bg-muted'
-//                               }`
-//                     }
-//                   >
-//                     {isUnsent ? (
-//                       <p
-//                         className={`text-sm italic opacity-80 px-1 py-0.5 ${
-//                           isOwnMessage ? '' : ''
-//                         }`}
-//                       >
-//                         message unsent
-//                       </p>
-//                     ) : msg.fileUrl ? (
-//                       <div>
-//                         {hasImage ? (
-//                           hasCaption ? (
-//                             <div
-//                               className={`overflow-hidden rounded-xl max-w-[240px] ${
-//                                 isOwnMessage
-//                                   ? 'bg-primary text-primary-foreground ring-1 ring-primary/25'
-//                                   : 'bg-muted ring-1 ring-border/50'
-//                               }`}
-//                             >
-//                               <button
-//                                 type="button"
-//                                 onClick={() => setLightboxUrl(msg.fileUrl!)}
-//                                 className="block w-full p-0 m-0 border-0 bg-transparent cursor-zoom-in outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/40"
-//                               >
-//                                 <div className="aspect-[4/5] w-full bg-black/10">
-//                                   <img
-//                                     src={msg.fileUrl}
-//                                     alt=""
-//                                     className="w-full h-full object-cover block"
-//                                     draggable={false}
-//                                   />
-//                                 </div>
-//                               </button>
-//                               <p className="text-sm whitespace-pre-wrap px-3 py-2 border-t border-black/10 dark:border-white/10">
-//                                 {msg.content}
-//                               </p>
-//                             </div>
-//                           ) : (
-//                             <button
-//                               type="button"
-//                               onClick={() => setLightboxUrl(msg.fileUrl!)}
-//                               className="block w-full p-0 m-0 border-0 bg-transparent cursor-zoom-in rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-primary/50 overflow-hidden max-w-[240px] ring-1 ring-border/60 dark:ring-border/80"
-//                             >
-//                               <div className="aspect-[4/5] w-full bg-black/5">
-//                                 <img
-//                                   src={msg.fileUrl}
-//                                   alt=""
-//                                   className="w-full h-full object-cover block"
-//                                   draggable={false}
-//                                 />
-//                               </div>
-//                             </button>
-//                           )
-//                         ) : (
-//                           <div className="flex items-center gap-2 p-2 bg-background/50 rounded-lg">
-//                             <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-//                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-//                             </svg>
-//                             <a
-//                               href={msg.fileUrl}
-//                               target="_blank"
-//                               rel="noopener noreferrer"
-//                               className="text-sm underline hover:no-underline truncate"
-//                             >
-//                               View attachment
-//                             </a>
-//                           </div>
-//                         )}
-//                       </div>
-//                     ) : (
-//                       <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
-//                     )}
-//                   </div>
+          const isUnsent = Boolean(msg.unsent);
+          const hasImage = Boolean(msg.fileUrl) && msg.fileType?.startsWith('image/') && !isUnsent;
+          const hasCaption = Boolean(msg.content?.trim());
+          const imageOnly = hasImage && !hasCaption;
+          const imageCaptionCombo = hasImage && hasCaption;
 
-//                   <div
-//                     className={`text-xs text-muted-foreground mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 ${
-//                       isOwnMessage ? 'justify-end' : 'justify-start'
-//                     }`}
-//                   >
-//                     <span>
-//                       {formatTime(msg.createdAt)}
-//                       {isOwnMessage && !isUnsent && (
-//                         <span className="ml-1">{msg.read ? '✓✓' : '✓'}</span>
-//                       )}
-//                     </span>
-//                     {isOwnMessage && !isUnsent && onUnsend && (
-//                       <button
-//                         type="button"
-//                         onClick={() => onUnsend(msg._id)}
-//                         className="text-[11px] font-medium text-muted-foreground hover:text-destructive underline-offset-2 hover:underline"
-//                       >
-//                         Unsend
-//                       </button>
-//                     )}
-//                   </div>
-//                 </div>
-//               </div>
-//             </Fragment>
-//           );
-//         })}
-//         <div ref={messagesEndRef} />
-//       </div>
+          // Date separator
+          const showDateSep = idx === 0 ||
+            getDateLabel(msg.createdAt) !== getDateLabel(messages[idx - 1].createdAt);
 
-//       {lightboxUrl && (
-//         <button
-//           type="button"
-//           className="fixed inset-0 z-[60] flex items-center justify-center bg-black/90 p-4 border-0 cursor-default"
-//           onClick={closeLightbox}
-//           aria-label="Close image"
-//         >
-//           <img
-//             src={lightboxUrl}
-//             alt=""
-//             className="max-h-[92vh] max-w-full w-auto h-auto object-contain shadow-2xl rounded-lg"
-//             onClick={(e) => e.stopPropagation()}
-//           />
-//           <span className="absolute top-4 right-4 text-white/80 text-sm">Esc or click outside to close</span>
-//         </button>
-//       )}
-//     </>
-//   );
-// }
-return (
-  <>
-    {onBack && selectedUser && (
-      <div className="md:hidden shrink-0 px-3 py-2 border-b border-[#2a2a2a] bg-[#0d0d0d]">
-        <button
-          type="button"
-          onClick={onBack}
-          className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
-        >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-          </svg>
-          Back
-        </button>
-      </div>
-    )}
+          // Bubble rounding: WhatsApp-style grouped
+          const ownRadius = `rounded-2xl ${isFirstInGroup ? 'rounded-tr-md' : ''} ${isLastInGroup ? 'rounded-tr-2xl' : 'rounded-tr-md'}`;
+          const otherRadius = `rounded-2xl ${isFirstInGroup ? 'rounded-tl-md' : ''} ${isLastInGroup ? 'rounded-tl-2xl' : 'rounded-tl-md'}`;
 
-    <div className="flex-1 overflow-y-auto p-4 space-y-3">
-      {messages.map((msg, idx) => {
-        const senderName = senderUsername(msg.sender);
-        const isOwnMessage = senderName === currentUser.username;
-        const prevSender = idx > 0 ? senderUsername(messages[idx - 1].sender) : '';
-        const showAvatar = !isOwnMessage && (idx === 0 || prevSender !== senderName);
-        const showGroupSender = isGroup && (idx === 0 || prevSender !== senderName);
-        const member = members.find((m) => m.username === senderName);
-        const avatarSrc = isGroup ? member?.dp : selectedUser.dp;
-        const avatarLetter = (
-          (isGroup ? member?.name : selectedUser.name) || senderName
-        ).charAt(0).toUpperCase();
-
-        const isUnsent = Boolean(msg.unsent);
-        const hasImage = Boolean(msg.fileUrl) && msg.fileType?.startsWith('image/') && !isUnsent;
-        const hasCaption = Boolean(msg.content?.trim());
-        const imageOnly = hasImage && !hasCaption;
-        const imageCaptionCombo = hasImage && hasCaption;
-
-        return (
-          <Fragment key={msg._id}>
-            {showGroupSender && (
-              <div className={`text-[11px] font-semibold text-muted-foreground ${isOwnMessage ? 'text-right pr-1' : 'pl-11'}`}>
-                {senderDisplayName(msg.sender, members)}
-                {isOwnMessage ? ' (you)' : ''}
-              </div>
-            )}
-
-            <div className={`flex gap-3 ${isOwnMessage ? 'justify-end' : 'justify-start'}`}>
-              {!isOwnMessage && (
-                <div className="w-8 shrink-0 flex justify-center mt-1">
-                  {showAvatar ? (
-                    <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold overflow-hidden">
-                      {avatarSrc ? (
-                        <img src={avatarSrc} className="w-full h-full object-cover" alt="" />
-                      ) : (
-                        avatarLetter
-                      )}
-                    </div>
-                  ) : null}
+          return (
+            <Fragment key={msg._id}>
+              {/* Date separator */}
+              {showDateSep && (
+                <div className="flex items-center gap-3 py-3">
+                  <div className="flex-1 h-px bg-[#2a2a2a]" />
+                  <span className="text-[11px] text-muted-foreground/50 shrink-0 px-1">
+                    {getDateLabel(msg.createdAt)}
+                  </span>
+                  <div className="flex-1 h-px bg-[#2a2a2a]" />
                 </div>
               )}
 
-              <div className={`max-w-[min(100%,280px)] ${isOwnMessage ? 'order-first' : ''}`}>
-                <div
-                  className={
-                    isUnsent
-                      ? `rounded-xl px-3 py-2 ${isOwnMessage ? 'bg-primary/90 text-white' : 'bg-muted'}`
-                      : imageCaptionCombo
-                        ? ''
-                        : imageOnly
-                          ? `overflow-hidden rounded-xl ${isOwnMessage ? 'ring-1 ring-primary/25' : 'ring-1 ring-border/60'}`
-                          : `rounded-xl px-3 py-2 ${isOwnMessage ? 'bg-primary text-white' : 'bg-muted'}`
-                  }
-                >
+              {/* Group sender name */}
+              {showGroupSender && (
+                <div className={`text-[11px] font-semibold text-[#FF781F]/70 mb-0.5 ${isOwn ? 'text-right pr-1' : 'pl-11'}`}>
+                  {senderDisplayName(msg.sender, members)}{isOwn ? ' (you)' : ''}
+                </div>
+              )}
+
+              {/* Message row */}
+              <div
+                className={`flex gap-2 items-end ${isOwn ? 'justify-end' : 'justify-start'} ${isLastInGroup ? 'mb-2' : 'mb-0.5'}`}
+                onMouseEnter={() => setHoveredId(msg._id)}
+                onMouseLeave={() => setHoveredId(null)}
+              >
+                {/* Avatar */}
+                {!isOwn && (
+                  <div className="w-7 shrink-0 self-end mb-0.5">
+                    {isLastInGroup ? (
+                      <div className="w-7 h-7 rounded-full bg-[#2a1f15] border border-[#2a2a2a] flex items-center justify-center text-[11px] font-bold overflow-hidden text-[#f5e6dc]">
+                        {avatarSrc ? <img src={avatarSrc} className="w-full h-full object-cover" alt="" /> : avatarLetter}
+                      </div>
+                    ) : null}
+                  </div>
+                )}
+
+                {/* Bubble */}
+                <div className={`max-w-[min(75%,320px)] flex flex-col ${isOwn ? 'items-end' : 'items-start'}`}>
                   {isUnsent ? (
-                    <p className="text-sm italic opacity-80 px-1 py-0.5">message unsent</p>
-                  ) : msg.fileUrl ? (
-                    <div>
-                      {hasImage ? (
-                        hasCaption ? (
-                          <div className={`overflow-hidden rounded-xl max-w-[240px] ${isOwnMessage ? 'bg-primary text-primary-foreground ring-1 ring-primary/25' : 'bg-muted ring-1 ring-border/50'}`}>
-                            <button
-                              type="button"
-                              onClick={() => setLightboxUrl(msg.fileUrl!)}
-                              className="block w-full p-0 m-0 border-0 bg-transparent cursor-zoom-in outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/40"
-                            >
-                              <div className="aspect-[4/5] w-full bg-black/10">
-                                <img src={msg.fileUrl} alt="" className="w-full h-full object-cover block" draggable={false} />
-                              </div>
-                            </button>
-                            <p className="text-sm whitespace-pre-wrap px-3 py-2 border-t border-black/10 dark:border-white/10">
-                              {msg.content}
-                            </p>
+                    <div className={`px-3 py-2 rounded-2xl border border-dashed ${isOwn ? 'border-[#FF781F]/30 bg-[#FF781F]/5' : 'border-[#2a2a2a] bg-[#1a1a1a]'}`}>
+                      <p className="text-[12px] italic text-muted-foreground/50">Message removed</p>
+                    </div>
+                  ) : hasImage ? (
+                    imageCaptionCombo ? (
+                      <div className={`overflow-hidden rounded-2xl max-w-[240px] ${isOwn ? 'bg-[#FF781F]' : 'bg-[#1e1e1e] border border-[#2a2a2a]'}`}>
+                        <button type="button" onClick={() => setLightboxUrl(msg.fileUrl!)}
+                          className="block w-full p-0 m-0 border-0 bg-transparent cursor-zoom-in outline-none">
+                          <div className="aspect-[4/5] w-full bg-black/10">
+                            <img src={msg.fileUrl} alt="" className="w-full h-full object-cover block" draggable={false}/>
                           </div>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => setLightboxUrl(msg.fileUrl!)}
-                            className="block w-full p-0 m-0 border-0 bg-transparent cursor-zoom-in rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-primary/50 overflow-hidden max-w-[240px] ring-1 ring-border/60 dark:ring-border/80"
-                          >
-                            <div className="aspect-[4/5] w-full bg-black/5">
-                              <img src={msg.fileUrl} alt="" className="w-full h-full object-cover block" draggable={false} />
-                            </div>
-                          </button>
-                        )
-                      ) : (
-                        <div className="flex items-center gap-2 p-2 bg-background/50 rounded-lg">
-                          <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                          </svg>
-                          <a href={msg.fileUrl} target="_blank" rel="noopener noreferrer" className="text-sm underline hover:no-underline truncate">
-                            View attachment
-                          </a>
+                        </button>
+                        <p className={`text-[13px] whitespace-pre-wrap px-3 py-2 border-t ${isOwn ? 'border-white/10 text-black' : 'border-[#2a2a2a]'}`}>
+                          {msg.content}
+                        </p>
+                      </div>
+                    ) : (
+                      <button type="button" onClick={() => setLightboxUrl(msg.fileUrl!)}
+                        className="block p-0 m-0 border-0 bg-transparent cursor-zoom-in rounded-2xl overflow-hidden outline-none max-w-[240px]">
+                        <div className="aspect-[4/5] w-full bg-black/10">
+                          <img src={msg.fileUrl} alt="" className="w-full h-full object-cover block" draggable={false}/>
                         </div>
-                      )}
+                      </button>
+                    )
+                  ) : msg.fileUrl ? (
+                    <div className={`flex items-center gap-2 px-3 py-2.5 rounded-2xl ${isOwn ? 'bg-[#FF781F]' : 'bg-[#1e1e1e] border border-[#2a2a2a]'}`}>
+                      <svg className={`w-4 h-4 shrink-0 ${isOwn ? 'text-black/70' : 'text-muted-foreground'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                      </svg>
+                      <a href={msg.fileUrl} target="_blank" rel="noopener noreferrer"
+                        className={`text-[13px] underline hover:no-underline truncate ${isOwn ? 'text-black' : ''}`}>
+                        View attachment
+                      </a>
                     </div>
                   ) : (
-                    <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                    <div className={`px-3 py-2 ${isOwn ? `bg-[#FF781F] text-black ${ownRadius}` : `bg-[#1e1e1e] border border-[#242424] text-foreground ${otherRadius}`}`}>
+                      <p className="text-[13px] whitespace-pre-wrap leading-relaxed">{msg.content}</p>
+                    </div>
                   )}
-                </div>
 
-                <div className={`text-xs text-muted-foreground mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 ${isOwnMessage ? 'justify-end' : 'justify-start'}`}>
-                  <span className="flex items-center gap-1">
-                    {formatTime(msg.createdAt)}
-                    {isOwnMessage && !isUnsent && (
-                      <span className={`ml-1 font-bold ${msg.read ? 'text-blue-400' : 'text-muted-foreground'}`}>
+                  {/* Time + read + unsend */}
+                  <div className={`flex items-center gap-1.5 mt-1 ${isOwn ? 'flex-row-reverse' : 'flex-row'}`}>
+                    <span className="text-[10px] text-muted-foreground/50">{formatTime(msg.createdAt)}</span>
+                    {isOwn && !isUnsent && (
+                      <span className={`text-[10px] font-bold ${msg.read ? 'text-[#FF781F]' : 'text-muted-foreground/40'}`}>
                         {msg.read ? '✓✓' : '✓'}
                       </span>
                     )}
-                  </span>
-                  {isOwnMessage && !isUnsent && onUnsend && (
-                    <button
-                      type="button"
-                      onClick={() => onUnsend(msg._id)}
-                      className="text-[11px] font-medium text-muted-foreground hover:text-destructive underline-offset-2 hover:underline"
-                    >
-                      Unsend
-                    </button>
-                  )}
+                    {isOwn && !isUnsent && onUnsend && hoveredId === msg._id && (
+                      <button type="button" onClick={() => onUnsend(msg._id)}
+                        className="text-[10px] text-muted-foreground/50 hover:text-red-400 transition-colors underline-offset-2 hover:underline">
+                        Unsend
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
-          </Fragment>
-        );
-      })}
-      <div ref={messagesEndRef} />
-    </div>
+            </Fragment>
+          );
+        })}
+        <div ref={messagesEndRef} />
+      </div>
 
-    {lightboxUrl && (
-      <button
-        type="button"
-        className="fixed inset-0 z-[60] flex items-center justify-center bg-black/90 p-4 border-0 cursor-default"
-        onClick={closeLightbox}
-        aria-label="Close image"
-      >
-        <img
-          src={lightboxUrl}
-          alt=""
-          className="max-h-[92vh] max-w-full w-auto h-auto object-contain shadow-2xl rounded-lg"
-          onClick={(e) => e.stopPropagation()}
-        />
-        <span className="absolute top-4 right-4 text-white/80 text-sm">Esc or click outside to close</span>
-      </button>
-    )}
-  </>
-);}
+      {/* Lightbox */}
+      {lightboxUrl && (
+        <button type="button"
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/95 p-4 border-0 cursor-default"
+          onClick={closeLightbox} aria-label="Close image">
+          <img src={lightboxUrl} alt=""
+            className="max-h-[92vh] max-w-full w-auto h-auto object-contain shadow-2xl rounded-xl"
+            onClick={(e) => e.stopPropagation()}/>
+          <span className="absolute top-4 right-4 text-white/40 text-[12px]">Esc or click outside to close</span>
+        </button>
+      )}
+    </>
+  );
+}
