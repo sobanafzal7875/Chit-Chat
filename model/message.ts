@@ -31,6 +31,10 @@ const MessageSchema = new mongoose.Schema({
     type: Boolean,
     default: false,
   },
+  readBy: {
+  type: [String],
+  default: [],
+  },
   unsent: {
     type: Boolean,
     default: false,

@@ -138,16 +138,13 @@ export class MessageService {
     }
   }
 
-  static async markGroupMessagesAsRead(groupId: string, userId: string) {
-    try {
-      // For group messages, we don't mark them as read since they're visible to all
-      // But we could implement a read receipt system later
-      return { success: true };
-    } catch (error) {
-      console.error('Error marking group messages as read:', error);
-      throw error;
-    }
-  }
+static async markGroupMessagesAsRead(groupId: string, username: string) {
+  await Message.updateMany(
+    { groupId, readBy: { $ne: username } },
+    { $addToSet: { readBy: username } }
+  );
+  return { success: true };
+}
 
   static async unsendMessage(messageId: string, requesterUsername: string) {
     const msg = await Message.findById(messageId);

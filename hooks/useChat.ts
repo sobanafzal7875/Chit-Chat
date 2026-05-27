@@ -483,6 +483,11 @@ newSocket.on('screen_share_signal', ({ signal }: { signal: unknown }) => {
             c.id === normalized.id ? { ...c, unreadCount: 0 } : c
           )
         );
+          void fetch('/api/messages/read', {
+          method: 'POST',
+          headers: jsonAuthHeaders(),
+          body: JSON.stringify({ groupId: normalized.id }),
+        });
       }
       }
     } catch (e) {

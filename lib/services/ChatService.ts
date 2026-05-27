@@ -84,6 +84,7 @@ export class ChatService {
         {
           $addFields: {
             lastMessage: { $arrayElemAt: [{ $sortArray: { input: '$messages', sortBy: { createdAt: -1 } } }, 0] },
+// NAYA — sahi
             unreadCount: {
               $size: {
                 $filter: {
@@ -91,7 +92,7 @@ export class ChatService {
                   cond: {
                     $and: [
                       { $ne: ['$$this.sender', username] },
-                      { $eq: ['$$this.read', false] }
+                      { $not: { $in: [username, { $ifNull: ['$$this.readBy', []] }] } }
                     ]
                   }
                 }
